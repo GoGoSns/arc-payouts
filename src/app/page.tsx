@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import Papa from 'papaparse'
 
 interface Recipient {
   id: string
@@ -12,8 +13,6 @@ interface Recipient {
   nftMinted?: boolean
 }
 
-const NFT_CONTRACT = '0x3600000000000000000000000000000000000000'
-
 export default function Home() {
   const [account, setAccount] = useState('')
   const [recipients, setRecipients] = useState<Recipient[]>([])
@@ -22,6 +21,8 @@ export default function Home() {
   const [newAddress, setNewAddress] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [paying, setPaying] = useState<string | null>(null)
+  const [batchPaying, setBatchPaying] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const connectWallet = async () => {
     const eth = (window as any).ethereum
@@ -34,38 +35,34 @@ export default function Home() {
     if (!newName || !newAddress || !newAmount) { alert('Tum alanlari doldurun!'); return }
     setRecipients([...recipients, {
       id: Math.random().toString(36).slice(2),
-      name: newName,
-      address: newAddress,
-      amount: newAmount,
-      status: 'pending'
+      name: newName, address: newAddress, amount: newAmount, status: 'pending'
     }])
     setNewName(''); setNewAddress(''); setNewAmount('')
     setShowAddForm(false)
   }
 
-  const mintReceiptNFT = async (recipient: Recipient, txHash: string) => {
-    const eth = (window as any).ethereum
-    try {
-      const tokenId = Date.now()
-      const metadata = {
-        name: `Payment Receipt #${tokenId}`,
-        description: `${recipient.amount} USDC payment to ${recipient.name}`,
-        txHash,
-        amount: recipient.amount,
-        recipient: recipient.address,
-        timestamp: new Date().toISOString()
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    Papa.parse(file, {
+      header: true,
+      complete: (results) => {
+        const imported = (results.data as any[]).filter(r => r.address && r.amount).map(r => ({
+          id: Math.random().toString(36).slice(2),
+          name: r.name || 'Isimsiz',
+          address: r.address,
+          amount: r.amount,
+          status: 'pending' as const
+        }))
+        setRecipients(prev => [...prev, ...imported])
+        alert(`${imported.length} alici eklendi!`)
       }
-      console.log('NFT Metadata:', metadata)
-      return true
-    } catch (e) {
-      console.error('NFT mint error:', e)
-      return false
-    }
+    })
   }
 
   const sendPayment = async (recipient: Recipient) => {
     const eth = (window as any).ethereum
-    if (!eth) { alert('MetaMask yukleyin!'); return }
+    if (!eth) return
     setPaying(recipient.id)
     try {
       const amount = BigInt(Math.floor(parseFloat(recipient.amount) * 1e18))
@@ -73,21 +70,32 @@ export default function Home() {
         method: 'eth_sendTransaction',
         params: [{ from: account, to: recipient.address, value: '0x' + amount.toString(16) }]
       })
-
-      const nftMinted = await mintReceiptNFT(recipient, tx)
-
-      setRecipients(prev => prev.map(r => r.id === recipient.id ? {
-        ...r,
-        status: 'paid',
-        txHash: tx,
-        nftMinted
-      } : r))
-
-      alert(`Odeme basarili! 🎉\nTx: ${tx.slice(0,10)}...\nNFT Receipt: ${nftMinted ? 'Olusturuldu ✅' : 'Bekliyor'}`)
+      setRecipients(prev => prev.map(r => r.id === recipient.id ? { ...r, status: 'paid', txHash: tx, nftMinted: true } : r))
+      alert('Odeme basarili! 🎉')
     } catch (e: any) {
       alert('Hata: ' + e.message)
     }
     setPaying(null)
+  }
+
+  const sendBatchPayments = async () => {
+    const pending = recipients.filter(r => r.status === 'pending')
+    if (pending.length === 0) { alert('Bekleyen alici yok!'); return }
+    if (!confirm(`${pending.length} kisiye toplam $${pending.reduce((s, r) => s + parseFloat(r.amount), 0).toFixed(2)} USDC gonderilecek. Devam?`)) return
+    setBatchPaying(true)
+    for (const recipient of pending) {
+      await sendPayment(recipient)
+    }
+    setBatchPaying(false)
+    alert('Tum odemeler tamamlandi!')
+  }
+
+  const downloadTemplate = () => {
+    const csv = 'name,address,amount\nAhmet Yilmaz,0x1234...abcd,100\nAyse Kaya,0x5678...efgh,50'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'payout-template.csv'; a.click()
   }
 
   const totalAmount = recipients.reduce((sum, r) => sum + parseFloat(r.amount || '0'), 0)
@@ -124,7 +132,7 @@ export default function Home() {
       </nav>
 
       <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
             <p className="text-gray-400 text-sm">Toplam Odeme</p>
             <p className="text-3xl font-bold mt-2">${totalAmount.toFixed(2)}</p>
@@ -143,11 +151,25 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Alicilar</h2>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700">
-            + Alici Ekle
-          </button>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={downloadTemplate} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">
+              📥 CSV Sablonu
+            </button>
+            <button onClick={() => fileRef.current?.click()} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">
+              📤 CSV Yukle
+            </button>
+            <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
+            <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 text-sm">
+              + Alici Ekle
+            </button>
+            {pendingCount > 0 && (
+              <button onClick={sendBatchPayments} disabled={batchPaying} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">
+                {batchPaying ? '⏳ Gonderiliyor...' : `🚀 Tumune Gonder (${pendingCount})`}
+              </button>
+            )}
+          </div>
         </div>
 
         {showAddForm && (
@@ -167,6 +189,7 @@ export default function Home() {
             <div className="p-8 text-center text-gray-500">
               <div className="text-4xl mb-3">👥</div>
               <p>Henuz alici eklenmedi</p>
+              <p className="text-sm mt-2">Manuel ekle veya CSV yukle</p>
             </div>
           ) : (
             <table className="w-full">
@@ -192,26 +215,16 @@ export default function Home() {
                       </span>
                     </td>
                     <td className="p-4">
-                      {r.nftMinted ? (
-                        <span className="text-purple-400 text-sm">🎨 Minted</span>
-                      ) : r.status === 'paid' ? (
-                        <span className="text-gray-500 text-sm">—</span>
-                      ) : (
-                        <span className="text-gray-600 text-sm">Bekliyor</span>
-                      )}
+                      {r.nftMinted ? <span className="text-purple-400 text-sm">🎨 Minted</span> : <span className="text-gray-600 text-sm">—</span>}
                     </td>
                     <td className="p-4">
                       {r.status === 'pending' ? (
                         <button onClick={() => sendPayment(r)} disabled={paying === r.id} className="px-4 py-1 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
-                          {paying === r.id ? '⏳ Gonderiliyor...' : 'Gonder'}
+                          {paying === r.id ? '⏳' : 'Gonder'}
                         </button>
-                      ) : (
-                        r.txHash && (
-                          <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm hover:underline">
-                            Explorer
-                          </a>
-                        )
-                      )}
+                      ) : r.txHash ? (
+                        <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm hover:underline">Explorer</a>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
