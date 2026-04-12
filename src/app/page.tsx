@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Link from 'next/link'
 import Papa from 'papaparse'
 
 interface Recipient {
@@ -60,6 +61,21 @@ export default function Home() {
     })
   }
 
+  const saveToHistory = (recipient: Recipient, txHash: string) => {
+    const stored = localStorage.getItem('arc_transactions')
+    const existing = stored ? JSON.parse(stored) : []
+    const newTx = {
+      id: Math.random().toString(36).slice(2),
+      name: recipient.name,
+      address: recipient.address,
+      amount: recipient.amount,
+      txHash,
+      timestamp: new Date().toISOString(),
+      nftMinted: true
+    }
+    localStorage.setItem('arc_transactions', JSON.stringify([newTx, ...existing]))
+  }
+
   const sendPayment = async (recipient: Recipient) => {
     const eth = (window as any).ethereum
     if (!eth) return
@@ -70,6 +86,7 @@ export default function Home() {
         method: 'eth_sendTransaction',
         params: [{ from: account, to: recipient.address, value: '0x' + amount.toString(16) }]
       })
+      saveToHistory(recipient, tx)
       setRecipients(prev => prev.map(r => r.id === recipient.id ? { ...r, status: 'paid', txHash: tx, nftMinted: true } : r))
       alert('Odeme basarili! 🎉')
     } catch (e: any) {
@@ -91,7 +108,7 @@ export default function Home() {
   }
 
   const downloadTemplate = () => {
-    const csv = 'name,address,amount\nAhmet Yilmaz,0x1234...abcd,100\nAyse Kaya,0x5678...efgh,50'
+    const csv = 'name,address,amount\nAhmet Yilmaz,0x1234567890123456789012345678901234567890,100\nAyse Kaya,0x0987654321098765432109876543210987654321,50'
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -126,6 +143,8 @@ export default function Home() {
           <h1 className="text-xl font-bold">Arc Global Payouts</h1>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/" className="text-white text-sm font-bold border-b border-blue-500">Dashboard</Link>
+          <Link href="/history" className="text-gray-400 hover:text-white text-sm">Gecmis</Link>
           <span className="text-xs bg-green-900 text-green-400 px-2 py-1 rounded">Arc Testnet</span>
           <span className="text-gray-400 text-sm">{account.slice(0,6)}...{account.slice(-4)}</span>
         </div>
