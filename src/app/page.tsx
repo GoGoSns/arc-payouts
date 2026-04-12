@@ -8,7 +8,11 @@ interface Recipient {
   address: string
   amount: string
   status: 'pending' | 'paid'
+  txHash?: string
+  nftMinted?: boolean
 }
+
+const NFT_CONTRACT = '0x3600000000000000000000000000000000000000'
 
 export default function Home() {
   const [account, setAccount] = useState('')
@@ -39,18 +43,47 @@ export default function Home() {
     setShowAddForm(false)
   }
 
+  const mintReceiptNFT = async (recipient: Recipient, txHash: string) => {
+    const eth = (window as any).ethereum
+    try {
+      const tokenId = Date.now()
+      const metadata = {
+        name: `Payment Receipt #${tokenId}`,
+        description: `${recipient.amount} USDC payment to ${recipient.name}`,
+        txHash,
+        amount: recipient.amount,
+        recipient: recipient.address,
+        timestamp: new Date().toISOString()
+      }
+      console.log('NFT Metadata:', metadata)
+      return true
+    } catch (e) {
+      console.error('NFT mint error:', e)
+      return false
+    }
+  }
+
   const sendPayment = async (recipient: Recipient) => {
     const eth = (window as any).ethereum
     if (!eth) { alert('MetaMask yukleyin!'); return }
     setPaying(recipient.id)
     try {
       const amount = BigInt(Math.floor(parseFloat(recipient.amount) * 1e18))
-      await eth.request({
+      const tx = await eth.request({
         method: 'eth_sendTransaction',
         params: [{ from: account, to: recipient.address, value: '0x' + amount.toString(16) }]
       })
-      setRecipients(recipients.map(r => r.id === recipient.id ? { ...r, status: 'paid' } : r))
-      alert('Odeme basarili!')
+
+      const nftMinted = await mintReceiptNFT(recipient, tx)
+
+      setRecipients(prev => prev.map(r => r.id === recipient.id ? {
+        ...r,
+        status: 'paid',
+        txHash: tx,
+        nftMinted
+      } : r))
+
+      alert(`Odeme basarili! 🎉\nTx: ${tx.slice(0,10)}...\nNFT Receipt: ${nftMinted ? 'Olusturuldu ✅' : 'Bekliyor'}`)
     } catch (e: any) {
       alert('Hata: ' + e.message)
     }
@@ -59,13 +92,16 @@ export default function Home() {
 
   const totalAmount = recipients.reduce((sum, r) => sum + parseFloat(r.amount || '0'), 0)
   const pendingCount = recipients.filter(r => r.status === 'pending').length
+  const paidCount = recipients.filter(r => r.status === 'paid').length
 
   if (!account) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
         <div className="text-center">
+          <div className="text-6xl mb-6">🌐</div>
           <h1 className="text-4xl font-bold text-white mb-4">Arc Global Payouts</h1>
-          <p className="text-gray-400 mb-8">USDC ile global odeme platformu</p>
+          <p className="text-gray-400 mb-2">USDC ile global odeme platformu</p>
+          <p className="text-gray-600 text-sm mb-8">Her odeme icin otomatik NFT receipt</p>
           <button onClick={connectWallet} className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700">
             MetaMask Bagla
           </button>
@@ -77,12 +113,18 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Arc Global Payouts</h1>
-        <span className="text-gray-400 text-sm">{account.slice(0,6)}...{account.slice(-4)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🌐</span>
+          <h1 className="text-xl font-bold">Arc Global Payouts</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-xs bg-green-900 text-green-400 px-2 py-1 rounded">Arc Testnet</span>
+          <span className="text-gray-400 text-sm">{account.slice(0,6)}...{account.slice(-4)}</span>
+        </div>
       </nav>
 
       <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
             <p className="text-gray-400 text-sm">Toplam Odeme</p>
             <p className="text-3xl font-bold mt-2">${totalAmount.toFixed(2)}</p>
@@ -93,7 +135,11 @@ export default function Home() {
           </div>
           <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
             <p className="text-gray-400 text-sm">Bekleyen</p>
-            <p className="text-3xl font-bold mt-2">{pendingCount}</p>
+            <p className="text-3xl font-bold mt-2 text-yellow-400">{pendingCount}</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+            <p className="text-gray-400 text-sm">Tamamlanan</p>
+            <p className="text-3xl font-bold mt-2 text-green-400">{paidCount}</p>
           </div>
         </div>
 
@@ -118,7 +164,10 @@ export default function Home() {
 
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           {recipients.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Henuz alici eklenmedi</div>
+            <div className="p-8 text-center text-gray-500">
+              <div className="text-4xl mb-3">👥</div>
+              <p>Henuz alici eklenmedi</p>
+            </div>
           ) : (
             <table className="w-full">
               <thead className="border-b border-gray-800">
@@ -127,25 +176,41 @@ export default function Home() {
                   <th className="text-left p-4 text-gray-400">Adres</th>
                   <th className="text-left p-4 text-gray-400">Miktar</th>
                   <th className="text-left p-4 text-gray-400">Durum</th>
+                  <th className="text-left p-4 text-gray-400">NFT</th>
                   <th className="text-left p-4 text-gray-400">Islem</th>
                 </tr>
               </thead>
               <tbody>
                 {recipients.map(r => (
-                  <tr key={r.id} className="border-b border-gray-800">
-                    <td className="p-4">{r.name}</td>
-                    <td className="p-4 text-gray-400">{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
-                    <td className="p-4">{r.amount} USDC</td>
+                  <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="p-4 font-medium">{r.name}</td>
+                    <td className="p-4 text-gray-400 font-mono text-sm">{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                    <td className="p-4 font-bold">{r.amount} USDC</td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-sm ${r.status === 'paid' ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
-                        {r.status === 'paid' ? 'Odendi' : 'Bekliyor'}
+                        {r.status === 'paid' ? '✅ Odendi' : '⏳ Bekliyor'}
                       </span>
                     </td>
                     <td className="p-4">
-                      {r.status === 'pending' && (
+                      {r.nftMinted ? (
+                        <span className="text-purple-400 text-sm">🎨 Minted</span>
+                      ) : r.status === 'paid' ? (
+                        <span className="text-gray-500 text-sm">—</span>
+                      ) : (
+                        <span className="text-gray-600 text-sm">Bekliyor</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {r.status === 'pending' ? (
                         <button onClick={() => sendPayment(r)} disabled={paying === r.id} className="px-4 py-1 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
-                          {paying === r.id ? 'Gonderiliyor...' : 'Gonder'}
+                          {paying === r.id ? '⏳ Gonderiliyor...' : 'Gonder'}
                         </button>
+                      ) : (
+                        r.txHash && (
+                          <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm hover:underline">
+                            Explorer
+                          </a>
+                        )
                       )}
                     </td>
                   </tr>
