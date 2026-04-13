@@ -3,6 +3,10 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
+import { useAccount, useConnect, useDisconnect, useSendTransaction } from 'wagmi'
+import { injected } from 'wagmi/connectors'
+import { parseEther } from 'viem'
+import { uploadImageToIPFS, uploadNFTMetadata } from '@/lib/pinata'
 
 interface Recipient {
   id: string
@@ -12,10 +16,15 @@ interface Recipient {
   status: 'pending' | 'paid'
   txHash?: string
   nftMinted?: boolean
+  nftUrl?: string
 }
 
 export default function Home() {
-  const [account, setAccount] = useState('')
+  const { address, isConnected } = useAccount()
+  const { connect } = useConnect()
+  const { disconnect } = useDisconnect()
+  const { sendTransactionAsync } = useSendTransaction()
+
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
@@ -23,13 +32,29 @@ export default function Home() {
   const [newAmount, setNewAmount] = useState('')
   const [paying, setPaying] = useState<string | null>(null)
   const [batchPaying, setBatchPaying] = useState(false)
+  const [nftImage, setNftImage] = useState<File | null>(null)
+  const [nftImagePreview, setNftImagePreview] = useState<string>('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [nftImageUrl, setNftImageUrl] = useState<string>('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const nftImageRef = useRef<HTMLInputElement>(null)
 
-  const connectWallet = async () => {
-    const eth = (window as any).ethereum
-    if (!eth) { alert('MetaMask yukleyin!'); return }
-    const accounts = await eth.request({ method: 'eth_requestAccounts' })
-    setAccount(accounts[0])
+  const connectWallet = () => connect({ connector: injected() })
+
+  const handleNFTImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNftImage(file)
+    setNftImagePreview(URL.createObjectURL(file))
+    setUploadingImage(true)
+    try {
+      const url = await uploadImageToIPFS(file)
+      setNftImageUrl(url)
+      alert('Gorsel IPFS e yuklendi! ✅')
+    } catch (e: any) {
+      alert('Gorsel yuklenemedi: ' + e.message)
+    }
+    setUploadingImage(false)
   }
 
   const addRecipient = () => {
@@ -61,7 +86,7 @@ export default function Home() {
     })
   }
 
-  const saveToHistory = (recipient: Recipient, txHash: string) => {
+  const saveToHistory = (recipient: Recipient, txHash: string, nftUrl?: string) => {
     const stored = localStorage.getItem('arc_transactions')
     const existing = stored ? JSON.parse(stored) : []
     const newTx = {
@@ -70,25 +95,45 @@ export default function Home() {
       address: recipient.address,
       amount: recipient.amount,
       txHash,
+      nftUrl,
       timestamp: new Date().toISOString(),
-      nftMinted: true
+      nftMinted: !!nftUrl
     }
     localStorage.setItem('arc_transactions', JSON.stringify([newTx, ...existing]))
   }
 
   const sendPayment = async (recipient: Recipient) => {
-    const eth = (window as any).ethereum
-    if (!eth) return
     setPaying(recipient.id)
     try {
-      const amount = BigInt(Math.floor(parseFloat(recipient.amount) * 1e18))
-      const tx = await eth.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: account, to: recipient.address, value: '0x' + amount.toString(16) }]
+      const tx = await sendTransactionAsync({
+        to: recipient.address as `0x${string}`,
+        value: parseEther(recipient.amount),
       })
-      saveToHistory(recipient, tx)
-      setRecipients(prev => prev.map(r => r.id === recipient.id ? { ...r, status: 'paid', txHash: tx, nftMinted: true } : r))
-      alert('Odeme basarili! 🎉')
+
+      let nftUrl = ''
+      if (nftImageUrl) {
+        try {
+          nftUrl = await uploadNFTMetadata(
+            `Payment Receipt - ${recipient.name}`,
+            `${recipient.amount} USDC payment to ${recipient.name} on Arc Testnet`,
+            nftImageUrl,
+            [
+              { trait_type: 'Recipient', value: recipient.name },
+              { trait_type: 'Amount', value: `${recipient.amount} USDC` },
+              { trait_type: 'Network', value: 'Arc Testnet' },
+              { trait_type: 'TxHash', value: tx },
+            ]
+          )
+        } catch (e) {
+          console.error('NFT mint error:', e)
+        }
+      }
+
+      saveToHistory(recipient, tx, nftUrl)
+      setRecipients(prev => prev.map(r => r.id === recipient.id ? {
+        ...r, status: 'paid', txHash: tx, nftMinted: !!nftUrl, nftUrl
+      } : r))
+      alert(`Odeme basarili! 🎉${nftUrl ? '\nNFT Receipt olusturuldu! 🎨' : ''}`)
     } catch (e: any) {
       alert('Hata: ' + e.message)
     }
@@ -98,13 +143,12 @@ export default function Home() {
   const sendBatchPayments = async () => {
     const pending = recipients.filter(r => r.status === 'pending')
     if (pending.length === 0) { alert('Bekleyen alici yok!'); return }
-    if (!confirm(`${pending.length} kisiye toplam $${pending.reduce((s, r) => s + parseFloat(r.amount), 0).toFixed(2)} USDC gonderilecek. Devam?`)) return
+    if (!confirm(`${pending.length} kisiye odeme gonderilecek. Devam?`)) return
     setBatchPaying(true)
     for (const recipient of pending) {
       await sendPayment(recipient)
     }
     setBatchPaying(false)
-    alert('Tum odemeler tamamlandi!')
   }
 
   const downloadTemplate = () => {
@@ -119,7 +163,7 @@ export default function Home() {
   const pendingCount = recipients.filter(r => r.status === 'pending').length
   const paidCount = recipients.filter(r => r.status === 'paid').length
 
-  if (!account) {
+  if (!isConnected) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
         <div className="text-center">
@@ -146,7 +190,8 @@ export default function Home() {
           <Link href="/" className="text-white text-sm font-bold border-b border-blue-500">Dashboard</Link>
           <Link href="/history" className="text-gray-400 hover:text-white text-sm">Gecmis</Link>
           <span className="text-xs bg-green-900 text-green-400 px-2 py-1 rounded">Arc Testnet</span>
-          <span className="text-gray-400 text-sm">{account.slice(0,6)}...{account.slice(-4)}</span>
+          <span className="text-gray-400 text-sm">{address?.slice(0,6)}...{address?.slice(-4)}</span>
+          <button onClick={() => disconnect()} className="text-xs text-red-400 hover:text-red-300">Cikis</button>
         </div>
       </nav>
 
@@ -170,19 +215,29 @@ export default function Home() {
           </div>
         </div>
 
+        {/* NFT Receipt Gorsel */}
+        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-6">
+          <h2 className="text-lg font-bold mb-3">🎨 NFT Receipt Gorseli</h2>
+          <p className="text-gray-400 text-sm mb-4">Her odeme sonrasi bu gorsel ile NFT receipt olusturulacak</p>
+          <div className="flex items-center gap-4">
+            {nftImagePreview && (
+              <img src={nftImagePreview} alt="NFT" className="w-16 h-16 rounded-lg object-cover border border-gray-700" />
+            )}
+            <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage} className="px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm">
+              {uploadingImage ? '⏳ Yukleniyor...' : nftImageUrl ? '✅ Gorsel Yuklendi' : '📁 Gorsel Sec'}
+            </button>
+            <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} className="hidden" />
+            {nftImageUrl && <span className="text-green-400 text-xs">IPFS e yuklendi ✅</span>}
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Alicilar</h2>
           <div className="flex gap-3 flex-wrap">
-            <button onClick={downloadTemplate} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">
-              📥 CSV Sablonu
-            </button>
-            <button onClick={() => fileRef.current?.click()} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">
-              📤 CSV Yukle
-            </button>
+            <button onClick={downloadTemplate} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">📥 CSV Sablonu</button>
+            <button onClick={() => fileRef.current?.click()} className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 text-sm">📤 CSV Yukle</button>
             <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
-            <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 text-sm">
-              + Alici Ekle
-            </button>
+            <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 text-sm">+ Alici Ekle</button>
             {pendingCount > 0 && (
               <button onClick={sendBatchPayments} disabled={batchPaying} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">
                 {batchPaying ? '⏳ Gonderiliyor...' : `🚀 Tumune Gonder (${pendingCount})`}
@@ -234,7 +289,13 @@ export default function Home() {
                       </span>
                     </td>
                     <td className="p-4">
-                      {r.nftMinted ? <span className="text-purple-400 text-sm">🎨 Minted</span> : <span className="text-gray-600 text-sm">—</span>}
+                      {r.nftUrl ? (
+                        <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-sm hover:underline">🎨 Gor</a>
+                      ) : r.nftMinted ? (
+                        <span className="text-purple-400 text-sm">🎨 Minted</span>
+                      ) : (
+                        <span className="text-gray-600 text-sm">—</span>
+                      )}
                     </td>
                     <td className="p-4">
                       {r.status === 'pending' ? (
