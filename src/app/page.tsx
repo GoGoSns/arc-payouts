@@ -144,6 +144,14 @@ export default function Home() {
     alert('Tum odemeler tamamlandi!')
   }
 
+  const downloadTemplate = () => {
+    const csv = 'name,address,amount\nAhmet Yilmaz,0x1234567890123456789012345678901234567890,100'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'template.csv'; a.click()
+  }
+
   const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
   const pendingCount = recipients.filter(r => r.status === 'pending').length
 
@@ -163,8 +171,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
+    <div className="min-h-screen bg-black text-white flex flex-col">
       <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span className="text-xl">🌐</span>
@@ -178,9 +185,7 @@ export default function Home() {
             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
             <span className="text-xs">Arc Testnet</span>
           </div>
-          <div className="bg-gray-900 rounded-full px-3 py-1 text-xs">
-            USDC
-          </div>
+          <div className="bg-gray-900 rounded-full px-3 py-1 text-xs">USDC</div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-purple-500 rounded-full"></div>
             <span className="text-xs text-gray-400">{address?.slice(0,6)}...{address?.slice(-4)}</span>
@@ -190,34 +195,30 @@ export default function Home() {
         </div>
       </nav>
 
-      <div className="flex h-[calc(100vh-65px)]">
-        {/* Sol Panel */}
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-            {/* Sekmeler */}
-            <div className="flex border-b border-gray-800">
-              {(['send', 'batch', 'nft'] as Tab[]).map(t => (
-                <button key={t} onClick={() => setTab(t)}
-                  className={`flex-1 py-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'text-white border-b-2 border-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                  {t === 'send' ? 'Send' : t === 'batch' ? 'Batch' : 'NFT'}
-                </button>
-              ))}
-            </div>
+      {/* Sekmeler */}
+      <div className="border-b border-gray-800 px-6">
+        <div className="flex gap-6">
+          {(['send', 'batch', 'nft'] as Tab[]).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`py-3 text-sm font-medium capitalize transition-colors border-b-2 ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
+              {t === 'send' ? 'Send' : t === 'batch' ? 'Batch Payout' : 'NFT Receipt'}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            <div className="p-6">
-              {/* SEND TAB */}
+      <div className="flex flex-1">
+        {/* Sol - Send & NFT */}
+        {(tab === 'send' || tab === 'nft') && (
+          <div className="flex-1 flex items-start justify-center p-8">
+            <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-6">
+
               {tab === 'send' && (
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
                     <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
-                      <input
-                        type="number"
-                        value={singleAmount}
-                        onChange={e => setSingleAmount(e.target.value)}
-                        placeholder="0"
-                        className="bg-transparent text-3xl font-bold flex-1 outline-none"
-                      />
+                      <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
                       <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
                         <span className="text-blue-400">●</span>
                         <span className="text-sm font-medium">USDC</span>
@@ -225,91 +226,31 @@ export default function Home() {
                     </div>
                     <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
                   </div>
-
                   <div className="flex justify-center">
                     <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">↓</div>
                   </div>
-
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">TO</label>
-                    <input
-                      type="text"
-                      value={singleAddress}
-                      onChange={e => setSingleAddress(e.target.value)}
-                      placeholder="0x..."
-                      className="w-full bg-gray-800 rounded-xl p-4 text-sm outline-none placeholder-gray-600"
-                    />
+                    <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="0x..." className="w-full bg-gray-800 rounded-xl p-4 text-sm outline-none placeholder-gray-600" />
                     <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
                   </div>
-
                   {singleAmount && (
                     <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-400">
-                        <span>Network gas</span>
-                        <span>~0.009 USDC</span>
-                      </div>
-                      <div className="flex justify-between text-gray-400">
-                        <span>Rate</span>
-                        <span>1 USDC = 1 USDC</span>
-                      </div>
-                      <div className="flex justify-between font-bold">
-                        <span>Total sent</span>
-                        <span>{singleAmount} USDC</span>
-                      </div>
+                      <div className="flex justify-between text-gray-400"><span>Network gas</span><span>~0.009 USDC</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 USDC = 1 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>Total sent</span><span>{singleAmount} USDC</span></div>
                     </div>
                   )}
-
-                  <button onClick={sendSingle} disabled={paying}
-                    className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                  <button onClick={sendSingle} disabled={paying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
                     {paying ? 'Gonderiliyor...' : 'Confirm transfer'}
                   </button>
-
-                  <div className="text-center text-xs text-gray-600">
-                    Arc Testnet · sub-second finality · USDC-native gas
-                  </div>
+                  <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · USDC-native gas</div>
                 </div>
               )}
 
-              {/* BATCH TAB */}
-              {tab === 'batch' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ad" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
-                    <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..." className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
-                    <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={addRecipient} className="flex-1 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600">+ Ekle</button>
-                    <button onClick={() => fileRef.current?.click()} className="flex-1 py-2 bg-gray-700 rounded-lg text-sm hover:bg-gray-600">📤 CSV</button>
-                    <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
-                  </div>
-
-                  {recipients.length > 0 && (
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {recipients.map(r => (
-                        <div key={r.id} className="flex justify-between items-center bg-gray-800 rounded-lg px-3 py-2 text-sm">
-                          <span>{r.name}</span>
-                          <span className="text-gray-400">{r.amount} USDC</span>
-                          <span className={r.status === 'paid' ? 'text-green-400' : 'text-yellow-400'}>
-                            {r.status === 'paid' ? '✅' : '⏳'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {pendingCount > 0 && (
-                    <button onClick={sendBatch} disabled={batchPaying}
-                      className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
-                      {batchPaying ? 'Gonderiliyor...' : `🚀 ${pendingCount} Kisiye Gonder`}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* NFT TAB */}
               {tab === 'nft' && (
                 <div className="space-y-4">
+                  <h2 className="font-bold text-lg">🎨 NFT Receipt Gorseli</h2>
                   <p className="text-gray-400 text-sm">Her odeme sonrasi bu gorsel ile NFT receipt olusturulacak</p>
                   <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center">
                     {nftImagePreview ? (
@@ -317,8 +258,7 @@ export default function Home() {
                     ) : (
                       <div className="text-4xl mb-3">🎨</div>
                     )}
-                    <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage}
-                      className="px-4 py-2 bg-purple-600 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50">
+                    <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage} className="px-4 py-2 bg-purple-600 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50">
                       {uploadingImage ? '⏳ Yukleniyor...' : nftImageUrl ? '✅ Gorsel Yuklendi' : 'Gorsel Sec'}
                     </button>
                     <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} className="hidden" />
@@ -332,57 +272,130 @@ export default function Home() {
               )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Sag Panel */}
-        <div className="w-80 border-l border-gray-800 p-6 flex flex-col gap-6">
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="text-xs text-gray-400 mb-1">BALANCE</div>
-            <div className="text-3xl font-bold">${totalPaid.toFixed(2)}</div>
-            <div className="text-xs text-green-400 mt-1">Toplam Gonderilen</div>
-          </div>
+        {/* Batch - Full Width Tablo */}
+        {tab === 'batch' && (
+          <div className="flex-1 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Batch Payout</h2>
+              <div className="flex gap-3">
+                <button onClick={downloadTemplate} className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">📥 Sablon</button>
+                <button onClick={() => fileRef.current?.click()} className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">📤 CSV Yukle</button>
+                <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
+                {pendingCount > 0 && (
+                  <button onClick={sendBatch} disabled={batchPaying} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {batchPaying ? '⏳ Gonderiliyor...' : `🚀 ${pendingCount} Kisiye Gonder`}
+                  </button>
+                )}
+              </div>
+            </div>
 
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="text-xs text-gray-400 mb-3">HOLDINGS</div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">$</div>
-                <div>
-                  <div className="text-sm font-medium">USDC</div>
-                  <div className="text-xs text-gray-500">Arc Testnet</div>
+            {/* Yeni Alici Formu */}
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
+              <div className="grid grid-cols-4 gap-3">
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ad Soyad" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
+                <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..." className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 col-span-2" />
+                <div className="flex gap-2">
+                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 flex-1" />
+                  <button onClick={addRecipient} className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700">+</button>
                 </div>
               </div>
-              <div className="text-right">
+            </div>
+
+            {/* Tablo */}
+            <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+              {recipients.length === 0 ? (
+                <div className="p-12 text-center text-gray-600">
+                  <div className="text-4xl mb-3">👥</div>
+                  <p>Henuz alici eklenmedi</p>
+                  <p className="text-sm mt-1">Manuel ekle veya CSV yukle</p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="border-b border-gray-800">
+                    <tr>
+                      <th className="text-left p-4 text-xs text-gray-400">AD</th>
+                      <th className="text-left p-4 text-xs text-gray-400">ADRES</th>
+                      <th className="text-left p-4 text-xs text-gray-400">MIKTAR</th>
+                      <th className="text-left p-4 text-xs text-gray-400">DURUM</th>
+                      <th className="text-left p-4 text-xs text-gray-400">NFT</th>
+                      <th className="text-left p-4 text-xs text-gray-400">TX</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recipients.map(r => (
+                      <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                        <td className="p-4 text-sm font-medium">{r.name}</td>
+                        <td className="p-4 text-sm text-gray-400 font-mono">{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                        <td className="p-4 text-sm font-bold">{r.amount} USDC</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded text-xs ${r.status === 'paid' ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
+                            {r.status === 'paid' ? '✅ Odendi' : '⏳ Bekliyor'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs hover:underline">🎨 Gor</a> : <span className="text-gray-600 text-xs">—</span>}
+                        </td>
+                        <td className="p-4">
+                          {r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">Explorer</a> : <span className="text-gray-600 text-xs">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sag Panel - sadece Send ve NFT'de gorunsun */}
+        {(tab === 'send' || tab === 'nft') && (
+          <div className="w-72 border-l border-gray-800 p-5 flex flex-col gap-4">
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-1">BALANCE</div>
+              <div className="text-3xl font-bold">${totalPaid.toFixed(2)}</div>
+              <div className="text-xs text-green-400 mt-1">Toplam Gonderilen</div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-3">HOLDINGS</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">$</div>
+                  <div>
+                    <div className="text-sm font-medium">USDC</div>
+                    <div className="text-xs text-gray-500">Arc Testnet</div>
+                  </div>
+                </div>
                 <div className="text-sm font-medium">${totalPaid.toFixed(2)}</div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex-1">
-            <div className="flex justify-between items-center mb-3">
-              <div className="text-xs text-gray-400">ACTIVITY</div>
-              <Link href="/history" className="text-xs text-gray-500 hover:text-white">All txns</Link>
-            </div>
-            {transactions.length === 0 ? (
-              <div className="text-center text-gray-600 text-sm py-4">Henuz islem yok</div>
-            ) : (
-              <div className="space-y-3">
-                {transactions.slice(0, 5).map(t => (
-                  <div key={t.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-red-900 rounded-full flex items-center justify-center text-xs">↗</div>
-                      <div>
-                        <div className="text-xs font-medium">Send USDC</div>
-                        <div className="text-xs text-gray-500">confirmed</div>
-                      </div>
-                    </div>
-                    <div className="text-sm font-medium text-red-400">-{t.amount}</div>
-                  </div>
-                ))}
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex-1">
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-xs text-gray-400">ACTIVITY</div>
+                <Link href="/history" className="text-xs text-gray-500 hover:text-white">All txns</Link>
               </div>
-            )}
+              {transactions.length === 0 ? (
+                <div className="text-center text-gray-600 text-sm py-4">Henuz islem yok</div>
+              ) : (
+                <div className="space-y-3">
+                  {transactions.slice(0, 5).map(t => (
+                    <div key={t.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-red-900 rounded-full flex items-center justify-center text-xs">↗</div>
+                        <div>
+                          <div className="text-xs font-medium">Send USDC</div>
+                          <div className="text-xs text-gray-500">confirmed</div>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-red-400">-{t.amount}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
