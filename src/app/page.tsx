@@ -3,9 +3,8 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
-import { useAccount, useConnect, useDisconnect, useSendTransaction } from 'wagmi'
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
-import { parseEther } from 'viem'
 import { uploadImageToIPFS, uploadNFTMetadata } from '@/lib/pinata'
 
 interface Recipient {
@@ -25,7 +24,6 @@ export default function Home() {
   const { address, isConnected } = useAccount()
   const { connect } = useConnect()
   const { disconnect } = useDisconnect()
-  const { sendTransactionAsync } = useSendTransaction()
 
   const [tab, setTab] = useState<Tab>('send')
   const [recipients, setRecipients] = useState<Recipient[]>([])
@@ -40,6 +38,7 @@ export default function Home() {
   const [nftImagePreview, setNftImagePreview] = useState('')
   const [uploadingImage, setUploadingImage] = useState(false)
   const [transactions, setTransactions] = useState<any[]>([])
+  const [txResult, setTxResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const nftImageRef = useRef<HTMLInputElement>(null)
 
@@ -59,8 +58,8 @@ export default function Home() {
     setUploadingImage(false)
   }
 
-  const saveTransaction = (name: string, addr: string, amount: string, txHash: string, nftUrl?: string) => {
-    const tx = { id: Math.random().toString(36).slice(2), name, address: addr, amount, txHash, nftUrl, timestamp: new Date().toISOString() }
+  const saveTransaction = (name: string, addr: string, amount: string, txHash: string, explorerUrl?: string, nftUrl?: string) => {
+    const tx = { id: Math.random().toString(36).slice(2), name, address: addr, amount, txHash, explorerUrl, nftUrl, timestamp: new Date().toISOString() }
     setTransactions(prev => [tx, ...prev])
     const stored = localStorage.getItem('arc_transactions')
     const existing = stored ? JSON.parse(stored) : []
@@ -70,11 +69,19 @@ export default function Home() {
   const sendSingle = async () => {
     if (!singleAddress || !singleAmount) { alert('Adres ve miktar girin!'); return }
     setPaying(true)
+    setTxResult(null)
     try {
-      const tx = await sendTransactionAsync({
-        to: singleAddress as `0x${string}`,
-        value: parseEther(singleAmount),
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.send({
+        from: { adapter, chain: 'Arc_Testnet' as never },
+        to: singleAddress,
+        amount: singleAmount,
+        token: 'USDC',
       })
+      const txHash = res.txHash ?? ''
       let nftUrl = ''
       if (nftImageUrl) {
         nftUrl = await uploadNFTMetadata(`Payment Receipt`, `${singleAmount} USDC odeme`, nftImageUrl, [
@@ -82,9 +89,9 @@ export default function Home() {
           { trait_type: 'Network', value: 'Arc Testnet' },
         ])
       }
-      saveTransaction('Manuel Odeme', singleAddress, singleAmount, tx, nftUrl)
+      saveTransaction('Manuel Odeme', singleAddress, singleAmount, txHash, res.explorerUrl, nftUrl)
+      setTxResult({ txHash, explorerUrl: res.explorerUrl })
       setSingleAddress(''); setSingleAmount('')
-      alert('Odeme basarili! 🎉')
     } catch (e: any) {
       alert('Hata: ' + e.message)
     }
@@ -121,12 +128,19 @@ export default function Home() {
     if (!pending.length) { alert('Bekleyen alici yok!'); return }
     if (!confirm(`${pending.length} kisiye odeme gonderilecek. Devam?`)) return
     setBatchPaying(true)
+    const { AppKit } = await import('@circle-fin/app-kit')
+    const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+    const kit = new AppKit()
+    const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
     for (const r of pending) {
       try {
-        const tx = await sendTransactionAsync({
-          to: r.address as `0x${string}`,
-          value: parseEther(r.amount),
+        const res = await kit.send({
+          from: { adapter, chain: 'Arc_Testnet' as never },
+          to: r.address,
+          amount: r.amount,
+          token: 'USDC',
         })
+        const txHash = res.txHash ?? ''
         let nftUrl = ''
         if (nftImageUrl) {
           nftUrl = await uploadNFTMetadata(`Receipt - ${r.name}`, `${r.amount} USDC`, nftImageUrl, [
@@ -134,8 +148,8 @@ export default function Home() {
             { trait_type: 'Amount', value: `${r.amount} USDC` },
           ])
         }
-        saveTransaction(r.name, r.address, r.amount, tx, nftUrl)
-        setRecipients(prev => prev.map(x => x.id === r.id ? { ...x, status: 'paid', txHash: tx, nftMinted: !!nftUrl, nftUrl } : x))
+        saveTransaction(r.name, r.address, r.amount, txHash, res.explorerUrl, nftUrl)
+        setRecipients(prev => prev.map(x => x.id === r.id ? { ...x, status: 'paid', txHash, nftMinted: !!nftUrl, nftUrl } : x))
       } catch (e: any) {
         console.error(e)
       }
@@ -195,12 +209,11 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Sekmeler */}
       <div className="border-b border-gray-800 px-6">
         <div className="flex gap-6">
           {(['send', 'batch', 'nft'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`py-3 text-sm font-medium capitalize transition-colors border-b-2 ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
+              className={`py-3 text-sm font-medium transition-colors border-b-2 ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
               {t === 'send' ? 'Send' : t === 'batch' ? 'Batch Payout' : 'NFT Receipt'}
             </button>
           ))}
@@ -208,7 +221,6 @@ export default function Home() {
       </div>
 
       <div className="flex flex-1">
-        {/* Sol - Send & NFT */}
         {(tab === 'send' || tab === 'nft') && (
           <div className="flex-1 flex items-start justify-center p-8">
             <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-6">
@@ -242,9 +254,29 @@ export default function Home() {
                     </div>
                   )}
                   <button onClick={sendSingle} disabled={paying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
-                    {paying ? 'Gonderiliyor...' : 'Confirm transfer'}
+                    {paying ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>
+                        Gonderiliyor...
+                      </span>
+                    ) : 'Confirm transfer'}
                   </button>
-                  <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · USDC-native gas</div>
+
+                  {txResult && (
+                    <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-green-400 text-sm font-bold">✓ Transaction confirmed</span>
+                      </div>
+                      <p className="text-xs text-gray-400 font-mono truncate">{txResult.txHash}</p>
+                      {txResult.explorerUrl && (
+                        <a href={txResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-green-400 text-xs hover:underline mt-1 block">
+                          View on ArcScan →
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · USDC-native gas · Powered by Arc App Kit</div>
                 </div>
               )}
 
@@ -274,7 +306,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Batch - Full Width Tablo */}
         {tab === 'batch' && (
           <div className="flex-1 p-6">
             <div className="flex justify-between items-center mb-4">
@@ -291,7 +322,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Yeni Alici Formu */}
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
               <div className="grid grid-cols-4 gap-3">
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ad Soyad" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
@@ -303,7 +333,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Tablo */}
             <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               {recipients.length === 0 ? (
                 <div className="p-12 text-center text-gray-600">
@@ -334,12 +363,8 @@ export default function Home() {
                             {r.status === 'paid' ? '✅ Odendi' : '⏳ Bekliyor'}
                           </span>
                         </td>
-                        <td className="p-4">
-                          {r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs hover:underline">🎨 Gor</a> : <span className="text-gray-600 text-xs">—</span>}
-                        </td>
-                        <td className="p-4">
-                          {r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">Explorer</a> : <span className="text-gray-600 text-xs">—</span>}
-                        </td>
+                        <td className="p-4">{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs hover:underline">🎨 Gor</a> : <span className="text-gray-600 text-xs">—</span>}</td>
+                        <td className="p-4">{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">Explorer</a> : <span className="text-gray-600 text-xs">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -349,7 +374,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Sag Panel - sadece Send ve NFT'de gorunsun */}
         {(tab === 'send' || tab === 'nft') && (
           <div className="w-72 border-l border-gray-800 p-5 flex flex-col gap-4">
             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
