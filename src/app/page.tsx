@@ -18,7 +18,7 @@ interface Recipient {
   nftUrl?: string
 }
 
-type Tab = 'send' | 'batch' | 'nft'
+type Tab = 'send' | 'batch' | 'nft' | 'bridge' | 'swap'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -41,6 +41,14 @@ export default function Home() {
   const [txResult, setTxResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const nftImageRef = useRef<HTMLInputElement>(null)
+
+  const [bridgeAmount, setBridgeAmount] = useState('')
+  const [bridgePaying, setBridgePaying] = useState(false)
+  const [bridgeResult, setBridgeResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
+
+  const [swapAmount, setSwapAmount] = useState('')
+  const [swapPaying, setSwapPaying] = useState(false)
+  const [swapResult, setSwapResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
 
   const connectWallet = () => connect({ connector: injected() })
 
@@ -96,6 +104,57 @@ export default function Home() {
       alert('Hata: ' + e.message)
     }
     setPaying(false)
+  }
+
+  const sendBridge = async () => {
+    if (!bridgeAmount) { alert('Miktar girin!'); return }
+    setBridgePaying(true)
+    setBridgeResult(null)
+    try {
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.bridge({
+        from: { adapter, chain: 'Ethereum_Sepolia' as never },
+        to: { adapter, chain: 'Arc_Testnet' as never },
+        amount: bridgeAmount,
+        token: 'USDC',
+      })
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+      saveTransaction('Bridge', address || '', bridgeAmount, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
+      setBridgeResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
+      setBridgeAmount('')
+    } catch (e: any) {
+      alert('Hata: ' + e.message)
+    }
+    setBridgePaying(false)
+  }
+
+  const sendSwap = async () => {
+    if (!swapAmount) { alert('Miktar girin!'); return }
+    setSwapPaying(true)
+    setSwapResult(null)
+    try {
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.swap({
+        from: { adapter, chain: 'Arc_Testnet' as never },
+        tokenIn: 'USDC',
+        tokenOut: 'EURC',
+        amountIn: swapAmount,
+        config: { slippageBps: 300 },
+      })
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+      saveTransaction('Swap USDC→EURC', address || '', swapAmount, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
+      setSwapResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
+      setSwapAmount('')
+    } catch (e: any) {
+      alert('Hata: ' + e.message)
+    }
+    setSwapPaying(false)
   }
 
   const addRecipient = () => {
@@ -168,6 +227,15 @@ export default function Home() {
 
   const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
   const pendingCount = recipients.filter(r => r.status === 'pending').length
+  const showSidePanel = tab === 'send' || tab === 'nft' || tab === 'bridge' || tab === 'swap'
+
+  const TAB_LABELS: Record<Tab, string> = {
+    send: 'Send',
+    batch: 'Batch Payout',
+    nft: 'NFT Receipt',
+    bridge: 'Bridge',
+    swap: 'Swap',
+  }
 
   if (!isConnected) {
     return (
@@ -211,17 +279,17 @@ export default function Home() {
 
       <div className="border-b border-gray-800 px-6">
         <div className="flex gap-6">
-          {(['send', 'batch', 'nft'] as Tab[]).map(t => (
+          {(['send', 'batch', 'nft', 'bridge', 'swap'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`py-3 text-sm font-medium transition-colors border-b-2 ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
-              {t === 'send' ? 'Send' : t === 'batch' ? 'Batch Payout' : 'NFT Receipt'}
+              {TAB_LABELS[t]}
             </button>
           ))}
         </div>
       </div>
 
       <div className="flex flex-1">
-        {(tab === 'send' || tab === 'nft') && (
+        {showSidePanel && (
           <div className="flex-1 flex items-start justify-center p-8">
             <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-6">
 
@@ -261,7 +329,6 @@ export default function Home() {
                       </span>
                     ) : 'Confirm transfer'}
                   </button>
-
                   {txResult && (
                     <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500">
                       <div className="flex items-center gap-2 mb-2">
@@ -301,6 +368,133 @@ export default function Home() {
                   )}
                 </div>
               )}
+
+              {tab === 'bridge' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU SEND</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span>
+                        <span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span className="text-xs text-gray-500">Ethereum Sepolia</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">↓</div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <span className="text-3xl font-bold flex-1 text-gray-500">{bridgeAmount || '0'}</span>
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span>
+                        <span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                      <span className="text-xs text-gray-500">Arc Testnet</span>
+                    </div>
+                  </div>
+                  {bridgeAmount && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-400"><span>From</span><span>Ethereum Sepolia</span></div>
+                      <div className="flex justify-between text-gray-400"><span>To</span><span>Arc Testnet</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Bridge fee</span><span>~0.01 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>You receive</span><span>{bridgeAmount} USDC</span></div>
+                    </div>
+                  )}
+                  <button onClick={sendBridge} disabled={bridgePaying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {bridgePaying ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>
+                        Bridge yapiliyor...
+                      </span>
+                    ) : 'Confirm bridge'}
+                  </button>
+                  {bridgeResult && (
+                    <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-green-400 text-sm font-bold">✓ Transaction confirmed</span>
+                      </div>
+                      <p className="text-xs text-gray-400 font-mono truncate">{bridgeResult.txHash}</p>
+                      {bridgeResult.explorerUrl && (
+                        <a href={bridgeResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-green-400 text-xs hover:underline mt-1 block">
+                          View on ArcScan →
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div className="text-center text-xs text-gray-600">Ethereum Sepolia → Arc Testnet · USDC · Powered by Arc App Kit</div>
+                </div>
+              )}
+
+              {tab === 'swap' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <input type="number" value={swapAmount} onChange={e => setSwapAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span>
+                        <span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">⇅</div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <span className="text-3xl font-bold flex-1 text-gray-500">{swapAmount || '0'}</span>
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-yellow-400">●</span>
+                        <span className="text-sm font-medium">EURC</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  {swapAmount && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 USDC ≈ 1 EURC</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Slippage</span><span>3%</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Network gas</span><span>~0.009 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>You receive</span><span>~{swapAmount} EURC</span></div>
+                    </div>
+                  )}
+                  <button onClick={sendSwap} disabled={swapPaying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {swapPaying ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>
+                        Swap yapiliyor...
+                      </span>
+                    ) : 'Confirm swap'}
+                  </button>
+                  {swapResult && (
+                    <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-green-400 text-sm font-bold">✓ Transaction confirmed</span>
+                      </div>
+                      <p className="text-xs text-gray-400 font-mono truncate">{swapResult.txHash}</p>
+                      {swapResult.explorerUrl && (
+                        <a href={swapResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-green-400 text-xs hover:underline mt-1 block">
+                          View on ArcScan →
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div className="text-center text-xs text-gray-600">Arc Testnet · USDC → EURC · Slippage 3% · Powered by Arc App Kit</div>
+                </div>
+              )}
+
             </div>
           </div>
         )}
@@ -320,7 +514,6 @@ export default function Home() {
                 )}
               </div>
             </div>
-
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
               <div className="grid grid-cols-4 gap-3">
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ad Soyad" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
@@ -331,7 +524,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
             <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               {recipients.length === 0 ? (
                 <div className="p-12 text-center text-gray-600">
@@ -373,7 +565,7 @@ export default function Home() {
           </div>
         )}
 
-        {(tab === 'send' || tab === 'nft') && (
+        {showSidePanel && (
           <div className="w-72 border-l border-gray-800 p-5 flex flex-col gap-4">
             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="text-xs text-gray-400 mb-1">BALANCE</div>
