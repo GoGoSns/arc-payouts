@@ -81,7 +81,7 @@ export default function Home() {
         amount: singleAmount,
         token: 'USDC',
       })
-      const txHash = res.txHash ?? ''
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
       let nftUrl = ''
       if (nftImageUrl) {
         nftUrl = await uploadNFTMetadata(`Payment Receipt`, `${singleAmount} USDC odeme`, nftImageUrl, [
@@ -89,8 +89,8 @@ export default function Home() {
           { trait_type: 'Network', value: 'Arc Testnet' },
         ])
       }
-      saveTransaction('Manuel Odeme', singleAddress, singleAmount, txHash, res.explorerUrl, nftUrl)
-      setTxResult({ txHash, explorerUrl: res.explorerUrl })
+      saveTransaction('Manuel Odeme', singleAddress, singleAmount, txHash, undefined, nftUrl)
+      setTxResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
       setSingleAddress(''); setSingleAmount('')
     } catch (e: any) {
       alert('Hata: ' + e.message)
@@ -140,7 +140,7 @@ export default function Home() {
           amount: r.amount,
           token: 'USDC',
         })
-        const txHash = res.txHash ?? ''
+        const txHash = (res as any)?.hash || (res as any)?.txHash || ''
         let nftUrl = ''
         if (nftImageUrl) {
           nftUrl = await uploadNFTMetadata(`Receipt - ${r.name}`, `${r.amount} USDC`, nftImageUrl, [
@@ -148,7 +148,7 @@ export default function Home() {
             { trait_type: 'Amount', value: `${r.amount} USDC` },
           ])
         }
-        saveTransaction(r.name, r.address, r.amount, txHash, res.explorerUrl, nftUrl)
+        saveTransaction(r.name, r.address, r.amount, txHash, undefined, nftUrl)
         setRecipients(prev => prev.map(x => x.id === r.id ? { ...x, status: 'paid', txHash, nftMinted: !!nftUrl, nftUrl } : x))
       } catch (e: any) {
         console.error(e)
@@ -275,7 +275,6 @@ export default function Home() {
                       )}
                     </div>
                   )}
-
                   <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · USDC-native gas · Powered by Arc App Kit</div>
                 </div>
               )}
