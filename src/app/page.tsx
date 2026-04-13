@@ -37,7 +37,6 @@ export default function Home() {
 
   const { data: usdcBalance } = useBalance({
     address,
-    token: USDC_ADDRESS_ARC as `0x${string}`,
   })
 
   const [tab, setTab] = useState<Tab>('send')
