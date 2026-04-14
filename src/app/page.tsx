@@ -1,4 +1,4 @@
-// Arc Global Payouts v3.0 — Dark Premium Gold
+// Arc Global Payouts v3.1 — Dark Premium Gold
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
@@ -29,11 +29,11 @@ const RATES: Record<string, Record<string, number>> = {
   ETH:  { USDC: 2630, EURC: 2420, ETH: 1 },
 }
 const TAB_CONFIG = [
-  { id: 'send',   label: 'Send',        icon: '💸' },
-  { id: 'batch',  label: 'Batch',       icon: '📋' },
-  { id: 'nft',    label: 'NFT Receipt', icon: '🎨' },
-  { id: 'bridge', label: 'Bridge',      icon: '🌉' },
-  { id: 'swap',   label: 'Swap',        icon: '🔄' },
+  { id: 'send',   label: 'Send',        short: 'S'  },
+  { id: 'batch',  label: 'Batch',       short: 'B'  },
+  { id: 'nft',    label: 'NFT Receipt', short: 'N'  },
+  { id: 'bridge', label: 'Bridge',      short: 'Br' },
+  { id: 'swap',   label: 'Swap',        short: 'Sw' },
 ]
 
 export default function Home() {
@@ -241,17 +241,18 @@ export default function Home() {
   }
 
   const shareOnTwitter = (txHash: string, amount: string, token: string) => {
-    const text = `Just sent ${amount} ${token} instantly on Arc Network! ⚡\n\nTx: https://testnet.arcscan.app/tx/${txHash}\n\nBuilt with Arc Global Payouts by @GoGo\n#ArcNetwork #USDC #DeFi`
+    const text = `Just sent ${amount} ${token} instantly on Arc Network! ⚡\n\nTx: https://testnet.arcscan.app/tx/${txHash}\n\nBuilt with Arc Global Payouts by GoGo\n#ArcNetwork #USDC #DeFi`
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const addFavorite = () => {
     if (!favName || !singleAddress) { addToast('error', 'Enter name and address first'); return }
     const newFav = { name: favName, address: singleAddress }
-    setFavorites(prev => [...prev, newFav])
-    localStorage.setItem('arc_favorites', JSON.stringify([...favorites, newFav]))
+    const updated = [...favorites, newFav]
+    setFavorites(updated)
+    localStorage.setItem('arc_favorites', JSON.stringify(updated))
     setFavName(''); setShowFavInput(false)
-    addToast('success', 'Address saved to favorites!')
+    addToast('success', 'Address saved!')
   }
 
   const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
@@ -263,19 +264,20 @@ export default function Home() {
   const SkeletonBox = ({ w = 'w-full', h = 'h-4' }: { w?: string; h?: string }) => (
     <div className={`${w} ${h} bg-gray-900 rounded animate-pulse`}></div>
   )
+
   const TxBox = ({ result, amount, token }: { result: { txHash: string; explorerUrl?: string }, amount?: string, token?: string }) => (
-    <div className="rounded-xl p-4 border-l-4 border-yellow-600" style={{background:'#0e0e0e'}}>
+    <div className="rounded-xl p-4 border-l-4" style={{background:'#0e0e0e', borderLeftColor:'#c9a84c'}}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-bold" style={{color:'#c9a84c'}}>✓ Transaction confirmed</span>
         {amount && token && (
           <button onClick={() => shareOnTwitter(result.txHash, amount, token)}
-            className="text-xs px-2 py-1 rounded-lg border transition-colors hover:opacity-80"
+            className="text-xs px-2 py-1 rounded-lg border transition-colors"
             style={{borderColor:'#1e3a5f', color:'#60a5fa', background:'#0a1628'}}>
-            🐦 Share
+            𝕏 Share
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-500 font-mono truncate">{result.txHash}</p>
+      <p className="text-xs font-mono truncate" style={{color:'#555'}}>{result.txHash}</p>
       {result.explorerUrl && (
         <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer"
           className="text-xs hover:underline mt-1 block" style={{color:'#c9a84c'}}>
@@ -293,11 +295,45 @@ export default function Home() {
     </svg>
   )
 
-  // ─── NOT CONNECTED — LANDING PAGE ────────────────────────────
+  const TabIcon = ({ short, active }: { short: string, active: boolean }) => (
+    <span style={{
+      position: 'relative',
+      width: 18, height: 18,
+      border: `1px solid ${active ? '#c9a84c44' : '#1a1a1a'}`,
+      borderRadius: 4,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      flexShrink: 0,
+      fontSize: 8,
+      fontWeight: 800,
+      color: active ? '#c9a84c' : '#333',
+      transition: 'all .3s',
+    }}>
+      {active && (
+        <span style={{
+          position: 'absolute',
+          width: '200%', height: '200%',
+          top: '-50%', left: '-50%',
+          background: 'conic-gradient(transparent 0deg, #c9a84c 60deg, transparent 120deg)',
+          animation: 'tabSweep 2s linear infinite',
+        }} />
+      )}
+      <span style={{
+        position: 'absolute',
+        inset: 2,
+        background: '#080808',
+        borderRadius: 2,
+        zIndex: 1,
+      }} />
+      <span style={{position: 'relative', zIndex: 2}}>{short}</span>
+    </span>
+  )
+
   if (!isConnected) {
     return (
       <div className="min-h-screen flex flex-col" style={{background:'#080808'}}>
-        {/* Landing Nav */}
         <nav className="border-b px-6 py-4 flex justify-between items-center" style={{borderColor:'#141414'}}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#222'}}>
@@ -309,13 +345,10 @@ export default function Home() {
             </div>
           </div>
           <a href="https://github.com/GoGoSns/arc-payouts" target="_blank" rel="noopener noreferrer"
-            className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
-            style={{borderColor:'#222', color:'#888', background:'#111'}}>
+            className="text-xs px-3 py-1.5 rounded-lg border" style={{borderColor:'#222', color:'#888', background:'#111'}}>
             GitHub ↗
           </a>
         </nav>
-
-        {/* Hero */}
         <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 text-center">
           <div className="w-20 h-20 border rounded-2xl flex items-center justify-center mb-8" style={{background:'#111', borderColor:'#2a2a2a'}}>
             <WavesLogo size={40} />
@@ -324,11 +357,9 @@ export default function Home() {
             Global USDC Payments<br/>
             <span style={{color:'#c9a84c'}}>on Arc Network</span>
           </h1>
-          <p className="text-gray-500 mb-12 max-w-md text-lg leading-relaxed">
+          <p className="mb-12 max-w-md text-lg leading-relaxed" style={{color:'#555'}}>
             Send, bridge, swap and batch pay with USDC. Sub-second finality. Zero complexity.
           </p>
-
-          {/* Feature cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 w-full max-w-2xl">
             {[
               { icon: '💸', label: 'Send', desc: 'Instant USDC transfers' },
@@ -344,8 +375,6 @@ export default function Home() {
               </div>
             ))}
           </div>
-
-          {/* Steps */}
           <div className="flex flex-col gap-3 w-full max-w-xs mb-8">
             <p className="text-xs font-bold tracking-widest" style={{color:'#444'}}>GETTING STARTED</p>
             <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
@@ -369,7 +398,6 @@ export default function Home() {
               <span className="ml-auto text-xs" style={{color:'#333'}}>↗</span>
             </a>
           </div>
-
           <button onClick={connectWallet}
             className="px-10 py-4 rounded-xl font-bold text-lg active:scale-95 transition-all"
             style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
@@ -377,17 +405,18 @@ export default function Home() {
           </button>
           <p className="text-xs mt-4" style={{color:'#333'}}>MetaMask · WalletConnect · Coinbase Wallet</p>
         </div>
-
-        <div className="text-center py-6 text-xs" style={{color:'#2a2a2a', borderTop:'1px solid #111'}}>
+        <div className="text-center py-6 text-xs border-t" style={{color:'#2a2a2a', borderColor:'#111'}}>
           Arc Global Payouts · Built on Arc Network · by GoGo
         </div>
       </div>
     )
   }
 
-  // ─── CONNECTED APP ────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col" style={{background:'#080808', color:'#fff'}}>
+
+      {/* tabSweep animation */}
+      <style>{`@keyframes tabSweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {/* TOASTS */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
@@ -407,20 +436,26 @@ export default function Home() {
 
       {/* QR MODAL */}
       {showQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.8)'}}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.85)'}}>
           <div className="rounded-2xl p-6 border w-80" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
             <div className="flex justify-between items-center mb-4">
-              <span className="font-bold text-sm">Your Wallet Address</span>
-              <button onClick={() => setShowQR(false)} className="text-gray-500 hover:text-white">✕</button>
+              <span className="font-bold text-sm text-white">Your Wallet Address</span>
+              <button onClick={() => setShowQR(false)} style={{color:'#555'}}>✕</button>
             </div>
-            <div className="bg-white p-4 rounded-xl mb-4 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-6xl mb-2">📱</div>
-                <div className="text-xs text-gray-400 font-mono break-all">{address}</div>
+            <div className="bg-white p-6 rounded-xl mb-4 flex flex-col items-center justify-center gap-3">
+              <div className="grid grid-cols-8 gap-0.5">
+                {Array.from({length: 64}).map((_, i) => (
+                  <div key={i} style={{
+                    width: 8, height: 8,
+                    background: Math.random() > 0.5 ? '#000' : '#fff',
+                    borderRadius: 1,
+                  }} />
+                ))}
               </div>
+              <div className="text-xs text-gray-400 font-mono break-all text-center">{address}</div>
             </div>
             <button onClick={() => { navigator.clipboard.writeText(address || ''); addToast('success', 'Address copied!'); setShowQR(false) }}
-              className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
+              className="w-full py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
               style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
               Copy Address
             </button>
@@ -429,7 +464,7 @@ export default function Home() {
       )}
 
       {/* NAVBAR */}
-      <nav className="border-b px-4 md:px-6 py-4 flex justify-between items-center" style={{background:'#080808', borderColor:'#141414'}}>
+      <nav className="border-b px-4 md:px-6 py-4 flex justify-between items-center" style={{borderColor:'#141414'}}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#1e1e1e'}}>
             <WavesLogo size={20} />
@@ -441,25 +476,23 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* Desktop */}
         <div className="hidden md:flex items-center gap-3">
           <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:opacity-80"
-            style={{background:'#111', borderColor:'#1e1e1e'}}>
+            className="flex items-center gap-2 border rounded-full px-3 py-1" style={{background:'#111', borderColor:'#1e1e1e'}}>
             <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#c9a84c'}}></div>
-            <span className="text-xs text-gray-400">Arc Testnet</span>
+            <span className="text-xs" style={{color:'#666'}}>Arc Testnet</span>
           </a>
           <div className="border rounded-full px-3 py-1 text-xs" style={{background:'#111', borderColor:'#1e1e1e', color:'#c9a84c'}}>USDC</div>
-          <button onClick={() => setShowQR(true)} className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:opacity-80" style={{background:'#111', borderColor:'#1e1e1e'}}>
+          <button onClick={() => setShowQR(true)} className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:border-yellow-900"
+            style={{background:'#111', borderColor:'#1e1e1e'}}>
             <div className="w-6 h-6 rounded-full" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)'}}></div>
-            <span className="text-xs text-gray-500">{address?.slice(0,6)}...{address?.slice(-4)}</span>
-            <span className="text-xs" style={{color:'#444'}}>📱</span>
+            <span className="text-xs" style={{color:'#666'}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
+            <span className="text-xs" style={{color:'#333'}}>▾</span>
           </button>
-          <Link href="/history" className="text-xs transition-colors hover:opacity-80" style={{color:'#666'}}>History</Link>
+          <Link href="/history" className="text-xs transition-colors" style={{color:'#666'}}>History</Link>
           <div className="relative">
             <button onClick={() => setShowHelp(!showHelp)}
-              className="w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-colors hover:border-yellow-800"
+              className="w-6 h-6 rounded-full border text-xs flex items-center justify-center"
               style={{background:'#111', borderColor:'#222', color:'#666'}}>?</button>
             {showHelp && (
               <div className="absolute right-0 top-8 w-64 border rounded-xl shadow-2xl z-50 p-3" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
@@ -470,21 +503,19 @@ export default function Home() {
                   { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'testnet.arcscan.app' },
                 ].map(item => (
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setShowHelp(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:opacity-80" style={{background:'transparent'}}>
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:opacity-80">
                     <span className="text-sm">{item.icon}</span>
                     <div><div className="text-sm font-medium text-white">{item.title}</div><div className="text-xs" style={{color:'#444'}}>{item.sub}</div></div>
                   </a>
                 ))}
                 <div className="border-t mt-2 pt-2 px-1" style={{borderColor:'#141414'}}>
-                  <div className="text-xs" style={{color:'#333'}}>Arc Global Payouts v3.0 · by GoGo</div>
+                  <div className="text-xs" style={{color:'#333'}}>Arc Global Payouts v3.1 · by GoGo</div>
                 </div>
               </div>
             )}
           </div>
           <button onClick={() => disconnect()} className="text-xs transition-colors hover:text-red-400" style={{color:'#444'}}>Disconnect</button>
         </div>
-
-        {/* Mobile hamburger */}
         <button className="md:hidden flex flex-col gap-1.5 p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} style={{background:'#888'}}></span>
           <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'opacity-0' : ''}`} style={{background:'#888'}}></span>
@@ -492,23 +523,23 @@ export default function Home() {
         </button>
       </nav>
 
-      {/* Mobile menu */}
+      {/* MOBILE MENU */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b px-4 py-4 flex flex-col gap-3" style={{background:'#0a0a0a', borderColor:'#141414'}}>
           <div className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#c9a84c'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{background:'#c9a84c'}}></div>
             <span style={{color:'#888'}}>Arc Testnet</span>
             <span className="ml-auto text-xs font-mono" style={{color:'#444'}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
           </div>
+          <button onClick={() => { setShowQR(true); setMobileMenuOpen(false) }} className="text-sm py-1 text-left" style={{color:'#888'}}>📱 Show QR Code</button>
           {[
             { href: 'https://faucet.circle.com', label: '🚰 Get Test USDC' },
             { href: 'https://thirdweb.com/arc-testnet', label: '⚙️ Network Setup' },
             { href: 'https://testnet.arcscan.app', label: '🔍 ArcScan Explorer' },
           ].map(item => (
-            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className="text-sm py-1 transition-colors" style={{color:'#555'}}>{item.label}</a>
+            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className="text-sm py-1" style={{color:'#666'}}>{item.label}</a>
           ))}
-          <Link href="/history" className="text-sm py-1" style={{color:'#555'}}>📋 Transaction History</Link>
-          <button onClick={() => { setShowQR(true); setMobileMenuOpen(false) }} className="text-sm py-1 text-left" style={{color:'#555'}}>📱 Show QR Code</button>
+          <Link href="/history" className="text-sm py-1" style={{color:'#666'}}>📋 Transaction History</Link>
           <button onClick={() => disconnect()} className="text-sm py-1 text-left text-red-500">Disconnect Wallet</button>
         </div>
       )}
@@ -523,8 +554,8 @@ export default function Home() {
                 color: tab === t.id ? '#c9a84c' : '#444',
                 borderBottomColor: tab === t.id ? '#c9a84c' : 'transparent',
               }}>
-              <span>{t.icon}</span>
-              <span>{t.label}</span>
+              <TabIcon short={t.short} active={tab === t.id} />
+              {t.label}
             </button>
           ))}
         </div>
@@ -544,37 +575,33 @@ export default function Home() {
                     <label className="text-xs font-bold tracking-wider" style={{color:'#444'}}>YOU PAY</label>
                     <span className="text-xs" style={{color:'#444'}}>Balance: ${balanceFormatted || '—'}</span>
                   </div>
-                  <div className="rounded-xl p-4 border transition-all focus-within:border-yellow-900" style={{background:'#080808', borderColor:'#181818'}}>
+                  <div className="rounded-xl p-4 border transition-all" style={{background:'#080808', borderColor:'#181818'}}>
                     <div className="flex items-center gap-3">
                       <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0"
                         className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
                       <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
                         <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold text-gray-300">USDC</span>
+                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
                       </div>
                     </div>
                     <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                   </div>
-
                   <div className="flex justify-center">
                     <div className="w-8 h-8 border rounded-lg flex items-center justify-center text-sm" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#333'}}>↓</div>
                   </div>
-
-                  <label className="text-xs font-bold tracking-wider" style={{color:'#444'}}>TO</label>
-                  <div className="rounded-xl p-4 border transition-all focus-within:border-yellow-900" style={{background:'#080808', borderColor:'#181818'}}>
+                  <label className="text-xs font-bold tracking-wider block" style={{color:'#444'}}>TO</label>
+                  <div className="rounded-xl p-4 border transition-all" style={{background:'#080808', borderColor:'#181818'}}>
                     <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="Wallet address or ENS"
                       className="bg-transparent text-sm outline-none w-full" style={{color:'#888'}} />
                     <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                   </div>
-
-                  {/* Favorites */}
                   {favorites.length > 0 && (
                     <div>
                       <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>FAVORITES</div>
                       <div className="flex flex-wrap gap-2">
                         {favorites.map((f, i) => (
                           <button key={i} onClick={() => setSingleAddress(f.address)}
-                            className="text-xs px-2 py-1 border rounded-lg transition-colors hover:border-yellow-900"
+                            className="text-xs px-2 py-1 border rounded-lg hover:border-yellow-900 transition-colors"
                             style={{background:'#141414', borderColor:'#222', color:'#888'}}>
                             ⭐ {f.name}
                           </button>
@@ -582,25 +609,19 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
-                  {/* Save to favorites */}
-                  {singleAddress && (
-                    <div>
-                      {!showFavInput ? (
-                        <button onClick={() => setShowFavInput(true)} className="text-xs transition-colors hover:opacity-80" style={{color:'#444'}}>
-                          + Save to favorites
-                        </button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <input value={favName} onChange={e => setFavName(e.target.value)} placeholder="Label (e.g. Alice)"
-                            className="flex-1 text-xs px-3 py-2 border rounded-lg outline-none" style={{background:'#141414', borderColor:'#222', color:'#fff'}} />
-                          <button onClick={addFavorite} className="text-xs px-3 py-2 rounded-lg font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>Save</button>
-                          <button onClick={() => setShowFavInput(false)} className="text-xs" style={{color:'#444'}}>✕</button>
-                        </div>
-                      )}
+                  {singleAddress && !showFavInput && (
+                    <button onClick={() => setShowFavInput(true)} className="text-xs transition-colors hover:opacity-80" style={{color:'#444'}}>
+                      + Save to favorites
+                    </button>
+                  )}
+                  {showFavInput && (
+                    <div className="flex gap-2">
+                      <input value={favName} onChange={e => setFavName(e.target.value)} placeholder="Label (e.g. Alice)"
+                        className="flex-1 text-xs px-3 py-2 border rounded-lg outline-none" style={{background:'#141414', borderColor:'#222', color:'#fff'}} />
+                      <button onClick={addFavorite} className="text-xs px-3 py-2 rounded-lg font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>Save</button>
+                      <button onClick={() => setShowFavInput(false)} className="text-xs" style={{color:'#444'}}>✕</button>
                     </div>
                   )}
-
                   {singleAmount && (
                     <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
                       <div className="flex justify-between"><span style={{color:'#444'}}>Network fee</span><span style={{color:'#666'}}>~0.009 USDC</span></div>
@@ -610,7 +631,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
                   <button onClick={sendSingle} disabled={paying}
                     className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
                     style={{background: paying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
@@ -624,10 +644,12 @@ export default function Home() {
               {/* NFT */}
               {tab === 'nft' && (
                 <div className="space-y-4">
-                  <h2 className="font-bold text-lg text-white">🎨 NFT Receipt Image</h2>
+                  <h2 className="font-bold text-lg text-white">NFT Receipt Image</h2>
                   <p className="text-sm" style={{color:'#555'}}>This image will be minted as an NFT receipt after each payment.</p>
-                  <div className="border-2 border-dashed rounded-xl p-8 text-center transition-colors hover:border-yellow-900" style={{borderColor:'#1a1a1a'}}>
-                    {nftImagePreview ? <img src={nftImagePreview} alt="NFT" className="w-32 h-32 rounded-xl object-cover mx-auto mb-3" /> : <div className="text-4xl mb-3">🎨</div>}
+                  <div className="border-2 border-dashed rounded-xl p-8 text-center hover:border-yellow-900 transition-colors" style={{borderColor:'#1a1a1a'}}>
+                    {nftImagePreview
+                      ? <img src={nftImagePreview} alt="NFT" className="w-32 h-32 rounded-xl object-cover mx-auto mb-3" />
+                      : <div className="text-4xl mb-3">🎨</div>}
                     <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage}
                       className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
                       style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
@@ -663,14 +685,13 @@ export default function Home() {
                       ))}
                     </div>
                   </div>
-
-                  <div className="rounded-xl p-4 border focus-within:border-yellow-900 transition-all" style={{background:'#080808', borderColor:'#181818'}}>
+                  <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#181818'}}>
                     <div className="flex items-center gap-3">
                       <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0"
                         className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
                       <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
                         <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold text-gray-300">USDC</span>
+                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
@@ -678,12 +699,10 @@ export default function Home() {
                       <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span>
                     </div>
                   </div>
-
                   <div className="flex justify-center">
                     <button onClick={flipBridge} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
                       style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
                   </div>
-
                   <div>
                     <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>TO</label>
                     <div className="grid grid-cols-3 gap-2">
@@ -701,13 +720,12 @@ export default function Home() {
                       ))}
                     </div>
                   </div>
-
                   <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
                     <div className="flex items-center gap-3">
-                      <span className="text-4xl font-light flex-1 text-gray-600" style={{letterSpacing:'-1px'}}>{bridgeAmount || '0'}</span>
+                      <span className="text-4xl font-light flex-1" style={{letterSpacing:'-1px', color:'#444'}}>{bridgeAmount || '0'}</span>
                       <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
                         <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold text-gray-300">USDC</span>
+                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
@@ -715,7 +733,6 @@ export default function Home() {
                       <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span>
                     </div>
                   </div>
-
                   {bridgeAmount && (
                     <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
                       <div className="flex justify-between"><span style={{color:'#444'}}>From</span><span style={{color:'#666'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
@@ -726,7 +743,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
                   <button onClick={sendBridge} disabled={bridgePaying}
                     className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
                     style={{background: bridgePaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
@@ -741,12 +757,12 @@ export default function Home() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU PAY</label>
-                    <div className="rounded-xl p-4 border focus-within:border-yellow-900 transition-all" style={{background:'#080808', borderColor:'#181818'}}>
+                    <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#181818'}}>
                       <div className="flex items-center gap-3">
                         <input type="number" value={swapAmountIn} onChange={e => setSwapAmountIn(e.target.value)} placeholder="0"
                           className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
                         <select value={swapTokenIn} onChange={e => setSwapTokenIn(e.target.value)}
-                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer transition-colors"
+                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
                           style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
                           {TOKENS.filter(t => t !== swapTokenOut).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
@@ -754,17 +770,15 @@ export default function Home() {
                       <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                     </div>
                   </div>
-
                   <div className="flex justify-center">
                     <button onClick={flipSwap} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
                       style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
                   </div>
-
                   <div>
                     <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU RECEIVE</label>
                     <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
                       <div className="flex items-center gap-3">
-                        <span className="text-4xl font-light flex-1 text-gray-600" style={{letterSpacing:'-1px'}}>{swapAmountOut}</span>
+                        <span className="text-4xl font-light flex-1" style={{letterSpacing:'-1px', color:'#444'}}>{swapAmountOut}</span>
                         <select value={swapTokenOut} onChange={e => setSwapTokenOut(e.target.value)}
                           className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
                           style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
@@ -774,7 +788,6 @@ export default function Home() {
                       <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                     </div>
                   </div>
-
                   <div>
                     <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>SLIPPAGE</label>
                     <div className="flex gap-2 items-center flex-wrap">
@@ -789,14 +802,14 @@ export default function Home() {
                           {s}%
                         </button>
                       ))}
-                      <input type="number" placeholder="Custom" value={['0.5','1','3'].includes(swapSlippage) ? '' : swapSlippage}
+                      <input type="number" placeholder="Custom"
+                        value={['0.5','1','3'].includes(swapSlippage) ? '' : swapSlippage}
                         onChange={e => setSwapSlippage(e.target.value)}
-                        className="w-20 border rounded-lg px-2 py-1.5 text-xs outline-none transition-colors"
+                        className="w-20 border rounded-lg px-2 py-1.5 text-xs outline-none"
                         style={{background:'#080808', borderColor:'#1a1a1a', color:'#888'}} />
                       {priceImpactHigh && <span className="text-xs font-bold text-red-400">⚠ High impact</span>}
                     </div>
                   </div>
-
                   {swapAmountIn && (
                     <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
                       <div className="flex justify-between"><span style={{color:'#444'}}>Rate</span><span style={{color:'#666'}}>1 {swapTokenIn} = {(RATES[swapTokenIn]?.[swapTokenOut] || 1).toFixed(4)} {swapTokenOut}</span></div>
@@ -808,7 +821,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
                   <div className="border rounded-xl p-3" style={{background:'#080808', borderColor:'#111'}}>
                     <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>ROUTE</div>
                     <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -820,7 +832,6 @@ export default function Home() {
                     </div>
                     <div className="text-xs mt-2" style={{color:'#333'}}>Best route · Arc DEX · 0.3% fee</div>
                   </div>
-
                   <button onClick={sendSwap} disabled={swapPaying}
                     className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
                     style={{background: swapPaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
@@ -837,15 +848,18 @@ export default function Home() {
         {tab === 'batch' && (
           <div className="flex-1 p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-              <h2 className="text-xl font-bold text-white">📋 Batch Payout</h2>
+              <h2 className="text-xl font-bold text-white">Batch Payout</h2>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={downloadTemplate} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>📥 Template</button>
-                <button onClick={() => fileRef.current?.click()} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>📤 Import CSV</button>
+                <button onClick={downloadTemplate} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900"
+                  style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>Template</button>
+                <button onClick={() => fileRef.current?.click()} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900"
+                  style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>Import CSV</button>
                 <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
                 {pendingCount > 0 && (
-                  <button onClick={sendBatch} disabled={batchPaying} className="px-3 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
+                  <button onClick={sendBatch} disabled={batchPaying}
+                    className="px-3 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
                     style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                    {batchPaying ? <span className="flex items-center gap-2"><Spinner />Sending...</span> : `🚀 Send to ${pendingCount}`}
+                    {batchPaying ? <span className="flex items-center gap-2"><Spinner />Sending...</span> : `Send to ${pendingCount}`}
                   </button>
                 )}
               </div>
@@ -859,7 +873,7 @@ export default function Home() {
                 <div className="flex gap-2">
                   <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number"
                     className="border rounded-lg px-3 py-2 text-sm outline-none flex-1" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
-                  <button onClick={addRecipient} className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95 transition-all"
+                  <button onClick={addRecipient} className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95"
                     style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>+</button>
                 </div>
               </div>
@@ -888,9 +902,7 @@ export default function Home() {
                         <td className="p-4 text-sm font-bold" style={{color:'#c9a84c'}}>{r.amount} USDC</td>
                         <td className="p-4">
                           <span className="px-2 py-1 rounded text-xs font-bold"
-                            style={r.status === 'paid'
-                              ? {background:'#0a1a0a', color:'#4ade80'}
-                              : {background:'#1a1500', color:'#c9a84c'}}>
+                            style={r.status === 'paid' ? {background:'#0a1a0a', color:'#4ade80'} : {background:'#1a1500', color:'#c9a84c'}}>
                             {r.status === 'paid' ? '✅ Paid' : '⏳ Pending'}
                           </span>
                         </td>
@@ -908,19 +920,16 @@ export default function Home() {
         {/* RIGHT PANEL */}
         {showSidePanel && (
           <div className="w-full md:w-72 border-t md:border-t-0 md:border-l p-4 md:p-5 flex flex-col gap-4" style={{borderColor:'#111'}}>
-
             <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>USDC BALANCE</div>
-              {balanceLoading ? (
-                <div className="space-y-2"><SkeletonBox h="h-8" w="w-24" /><SkeletonBox h="h-3" w="w-32" /></div>
-              ) : (
-                <>
-                  <div className="text-3xl font-light text-white" style={{letterSpacing:'-1px'}}>${balanceFormatted}</div>
-                  <div className="text-xs mt-1 font-bold" style={{color:'#c9a84c'}}>Arc Testnet · Live</div>
-                </>
-              )}
+              {balanceLoading
+                ? <div className="space-y-2"><SkeletonBox h="h-8" w="w-24" /><SkeletonBox h="h-3" w="w-32" /></div>
+                : <>
+                    <div className="text-3xl font-light text-white" style={{letterSpacing:'-1px'}}>${balanceFormatted}</div>
+                    <div className="text-xs mt-1 font-bold" style={{color:'#c9a84c'}}>Arc Testnet · Live</div>
+                  </>
+              }
             </div>
-
             <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>ANALYTICS</div>
               <div className="grid grid-cols-2 gap-2 mb-3">
@@ -940,28 +949,27 @@ export default function Home() {
                     {transactions.slice(-7).map((t, i) => {
                       const maxAmt = Math.max(...transactions.slice(-7).map(x => parseFloat(x.amount || '0')))
                       const h = maxAmt > 0 ? Math.max(4, (parseFloat(t.amount || '0') / maxAmt) * 36) : 4
-                      return <div key={i} style={{height: h, background: i === transactions.slice(-7).length - 1 ? '#c9a84c' : '#1a1500'}} className="flex-1 rounded-sm transition-colors cursor-pointer" title={`$${t.amount}`}></div>
+                      return <div key={i} style={{height: h, background: i === transactions.slice(-7).length - 1 ? '#c9a84c' : '#1a1500'}}
+                        className="flex-1 rounded-sm transition-colors cursor-pointer" title={`$${t.amount}`}></div>
                     })}
                   </div>
                 </div>
               )}
             </div>
-
             <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>HOLDINGS</div>
-              {balanceLoading ? (
-                <div className="flex items-center gap-2"><SkeletonBox w="w-8" h="h-8" /><div className="flex-1 space-y-1"><SkeletonBox h="h-3" /><SkeletonBox h="h-3" w="w-16" /></div></div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>$</div>
-                    <div><div className="text-sm font-medium text-white">USDC</div><div className="text-xs" style={{color:'#444'}}>Arc Testnet</div></div>
+              {balanceLoading
+                ? <div className="flex items-center gap-2"><SkeletonBox w="w-8" h="h-8" /><div className="flex-1 space-y-1"><SkeletonBox h="h-3" /><SkeletonBox h="h-3" w="w-16" /></div></div>
+                : <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>$</div>
+                      <div><div className="text-sm font-medium text-white">USDC</div><div className="text-xs" style={{color:'#444'}}>Arc Testnet</div></div>
+                    </div>
+                    <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${balanceFormatted}</div>
                   </div>
-                  <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${balanceFormatted}</div>
-                </div>
-              )}
+              }
             </div>
-
             <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>TOOLS</div>
               <div className="flex flex-col gap-2">
@@ -971,11 +979,8 @@ export default function Home() {
                   { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'Track transactions', gold: false },
                 ].map(item => (
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors hover:border-yellow-900"
-                    style={{
-                      background: item.gold ? '#1a1500' : '#080808',
-                      borderColor: item.gold ? '#2a2500' : '#141414',
-                    }}>
+                    className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:border-yellow-900 transition-colors"
+                    style={{background: item.gold ? '#1a1500' : '#080808', borderColor: item.gold ? '#2a2500' : '#141414'}}>
                     <span className="text-sm">{item.icon}</span>
                     <div className="flex-1">
                       <div className="text-xs font-medium" style={{color: item.gold ? '#c9a84c' : '#888'}}>{item.title}</div>
@@ -986,34 +991,32 @@ export default function Home() {
                 ))}
               </div>
             </div>
-
             <div className="border rounded-xl p-4 flex-1" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="flex justify-between items-center mb-3">
                 <div className="text-xs font-bold tracking-wider" style={{color:'#444'}}>ACTIVITY</div>
                 <div className="flex gap-2 items-center">
-                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:opacity-80" style={{color:'#333'}}>ArcScan</a>
+                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs" style={{color:'#333'}}>ArcScan</a>
                   <span style={{color:'#222'}}>·</span>
-                  <Link href="/history" className="text-xs transition-colors hover:opacity-80" style={{color:'#333'}}>All txns</Link>
+                  <Link href="/history" className="text-xs" style={{color:'#333'}}>All txns</Link>
                 </div>
               </div>
-              {transactions.length === 0 ? (
-                <div className="text-center text-sm py-4" style={{color:'#333'}}>No transactions yet</div>
-              ) : (
-                <div className="space-y-3">
-                  {transactions.slice(0, 5).map(t => (
-                    <div key={t.id} className="flex items-center justify-between p-1 rounded-lg transition-colors hover:opacity-80">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs" style={{background:'#1a1500', color:'#c9a84c'}}>↗</div>
-                        <div>
-                          <div className="text-xs font-medium text-white">{t.name || 'Send USDC'}</div>
-                          <div className="text-xs" style={{color:'#333'}}>confirmed</div>
+              {transactions.length === 0
+                ? <div className="text-center text-sm py-4" style={{color:'#333'}}>No transactions yet</div>
+                : <div className="space-y-3">
+                    {transactions.slice(0, 5).map(t => (
+                      <div key={t.id} className="flex items-center justify-between p-1 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs" style={{background:'#1a1500', color:'#c9a84c'}}>↗</div>
+                          <div>
+                            <div className="text-xs font-medium text-white">{t.name || 'Send USDC'}</div>
+                            <div className="text-xs" style={{color:'#333'}}>confirmed</div>
+                          </div>
                         </div>
+                        <div className="text-sm font-bold" style={{color:'#c9a84c'}}>-{t.amount}</div>
                       </div>
-                      <div className="text-sm font-bold" style={{color:'#c9a84c'}}>-{t.amount}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+              }
             </div>
           </div>
         )}
