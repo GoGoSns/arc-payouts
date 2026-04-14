@@ -1,6 +1,7 @@
+// Arc Global Payouts v3.0 — Dark Premium Gold
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
 import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
@@ -8,22 +9,10 @@ import { injected } from 'wagmi/connectors'
 import { uploadImageToIPFS, uploadNFTMetadata } from '@/lib/pinata'
 
 interface Recipient {
-  id: string
-  name: string
-  address: string
-  amount: string
-  status: 'pending' | 'paid'
-  txHash?: string
-  nftMinted?: boolean
-  nftUrl?: string
+  id: string; name: string; address: string; amount: string
+  status: 'pending' | 'paid'; txHash?: string; nftMinted?: boolean; nftUrl?: string
 }
-
-interface Toast {
-  id: string
-  type: 'success' | 'error' | 'loading'
-  message: string
-}
-
+interface Toast { id: string; type: 'success' | 'error' | 'loading'; message: string }
 type Tab = 'send' | 'batch' | 'nft' | 'bridge' | 'swap'
 
 const CHAINS = [
@@ -33,13 +22,19 @@ const CHAINS = [
   { id: 'Base_Sepolia',     label: 'Base Sepolia', dot: 'bg-indigo-400' },
   { id: 'Arc_Testnet',      label: 'Arc Testnet', dot: 'bg-green-400' },
 ]
-
 const TOKENS = ['USDC', 'EURC', 'ETH']
 const RATES: Record<string, Record<string, number>> = {
   USDC: { EURC: 0.92, ETH: 0.00038, USDC: 1 },
   EURC: { USDC: 1.087, ETH: 0.00041, EURC: 1 },
   ETH:  { USDC: 2630, EURC: 2420, ETH: 1 },
 }
+const TAB_CONFIG = [
+  { id: 'send',   label: 'Send',        icon: '💸' },
+  { id: 'batch',  label: 'Batch',       icon: '📋' },
+  { id: 'nft',    label: 'NFT Receipt', icon: '🎨' },
+  { id: 'bridge', label: 'Bridge',      icon: '🌉' },
+  { id: 'swap',   label: 'Swap',        icon: '🔄' },
+]
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -63,6 +58,10 @@ export default function Home() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [transactions, setTransactions] = useState<any[]>([])
   const [txResult, setTxResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
+  const [showQR, setShowQR] = useState(false)
+  const [favorites, setFavorites] = useState<{name: string, address: string}[]>([])
+  const [showFavInput, setShowFavInput] = useState(false)
+  const [favName, setFavName] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const nftImageRef = useRef<HTMLInputElement>(null)
 
@@ -78,26 +77,20 @@ export default function Home() {
   const [swapSlippage, setSwapSlippage] = useState('1')
   const [swapPaying, setSwapPaying] = useState(false)
   const [swapResult, setSwapResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
-
   const [showHelp, setShowHelp] = useState(false)
 
   const connectWallet = () => connect({ connector: injected() })
   const flipBridge = () => { const t = bridgeFrom; setBridgeFrom(bridgeTo); setBridgeTo(t) }
   const flipSwap = () => { const t = swapTokenIn; setSwapTokenIn(swapTokenOut); setSwapTokenOut(t) }
-
-  const swapAmountOut = swapAmountIn
-    ? (parseFloat(swapAmountIn) * (RATES[swapTokenIn]?.[swapTokenOut] || 1)).toFixed(4)
-    : '0'
+  const swapAmountOut = swapAmountIn ? (parseFloat(swapAmountIn) * (RATES[swapTokenIn]?.[swapTokenOut] || 1)).toFixed(4) : '0'
   const priceImpactHigh = parseFloat(swapAmountIn) > 1000
 
-  // ─── TOAST ────────────────────────────────────────────────────
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = Math.random().toString(36).slice(2)
     setToasts(prev => [...prev, { id, type, message }])
     if (type !== 'loading') setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
     return id
   }, [])
-
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id))
 
   const saveTransaction = (name: string, addr: string, amount: string, txHash: string, explorerUrl?: string, nftUrl?: string) => {
@@ -129,12 +122,8 @@ export default function Home() {
       saveTransaction('Payment', singleAddress, singleAmount, txHash, undefined, nftUrl)
       setTxResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
       setSingleAddress(''); setSingleAmount('')
-      removeToast(tid)
-      addToast('success', `Sent ${singleAmount} USDC successfully!`)
-    } catch (e: any) {
-      removeToast(tid)
-      addToast('error', 'Transaction failed: ' + e.message)
-    }
+      removeToast(tid); addToast('success', `Sent ${singleAmount} USDC!`)
+    } catch (e: any) { removeToast(tid); addToast('error', 'Error: ' + e.message) }
     setPaying(false)
   }
 
@@ -154,12 +143,8 @@ export default function Home() {
       saveTransaction(`Bridge ${fromLabel} → ${toLabel}`, address || '', bridgeAmount, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
       setBridgeResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
       setBridgeAmount('')
-      removeToast(tid)
-      addToast('success', `Bridged ${bridgeAmount} USDC successfully!`)
-    } catch (e: any) {
-      removeToast(tid)
-      addToast('error', 'Bridge failed: ' + e.message)
-    }
+      removeToast(tid); addToast('success', `Bridged ${bridgeAmount} USDC!`)
+    } catch (e: any) { removeToast(tid); addToast('error', 'Bridge failed: ' + e.message) }
     setBridgePaying(false)
   }
 
@@ -177,12 +162,8 @@ export default function Home() {
       saveTransaction(`Swap ${swapTokenIn} → ${swapTokenOut}`, address || '', swapAmountIn, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
       setSwapResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
       setSwapAmountIn('')
-      removeToast(tid)
-      addToast('success', `Swapped ${swapAmountIn} ${swapTokenIn} successfully!`)
-    } catch (e: any) {
-      removeToast(tid)
-      addToast('error', 'Swap failed: ' + e.message)
-    }
+      removeToast(tid); addToast('success', `Swapped ${swapAmountIn} ${swapTokenIn}!`)
+    } catch (e: any) { removeToast(tid); addToast('error', 'Swap failed: ' + e.message) }
     setSwapPaying(false)
   }
 
@@ -234,9 +215,22 @@ export default function Home() {
         success++
       } catch (e: any) { console.error(e) }
     }
-    removeToast(tid)
-    addToast('success', `${success}/${pending.length} payments sent!`)
+    removeToast(tid); addToast('success', `${success}/${pending.length} payments sent!`)
     setBatchPaying(false)
+  }
+
+  const handleNFTImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNftImagePreview(URL.createObjectURL(file))
+    setUploadingImage(true)
+    const tid = addToast('loading', 'Uploading to IPFS...')
+    try {
+      const url = await uploadImageToIPFS(file)
+      setNftImageUrl(url)
+      removeToast(tid); addToast('success', 'Uploaded to IPFS!')
+    } catch (e: any) { removeToast(tid); addToast('error', 'Upload failed: ' + e.message) }
+    setUploadingImage(false)
   }
 
   const downloadTemplate = () => {
@@ -246,22 +240,18 @@ export default function Home() {
     const a = document.createElement('a'); a.href = url; a.download = 'template.csv'; a.click()
   }
 
-  const handleNFTImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setNftImagePreview(URL.createObjectURL(file))
-    setUploadingImage(true)
-    const tid = addToast('loading', 'Uploading image to IPFS...')
-    try {
-      const url = await uploadImageToIPFS(file)
-      setNftImageUrl(url)
-      removeToast(tid)
-      addToast('success', 'Image uploaded to IPFS!')
-    } catch (e: any) {
-      removeToast(tid)
-      addToast('error', 'Upload failed: ' + e.message)
-    }
-    setUploadingImage(false)
+  const shareOnTwitter = (txHash: string, amount: string, token: string) => {
+    const text = `Just sent ${amount} ${token} instantly on Arc Network! ⚡\n\nTx: https://testnet.arcscan.app/tx/${txHash}\n\nBuilt with Arc Global Payouts by @GoGo\n#ArcNetwork #USDC #DeFi`
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  const addFavorite = () => {
+    if (!favName || !singleAddress) { addToast('error', 'Enter name and address first'); return }
+    const newFav = { name: favName, address: singleAddress }
+    setFavorites(prev => [...prev, newFav])
+    localStorage.setItem('arc_favorites', JSON.stringify([...favorites, newFav]))
+    setFavName(''); setShowFavInput(false)
+    addToast('success', 'Address saved to favorites!')
   }
 
   const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
@@ -269,163 +259,272 @@ export default function Home() {
   const showSidePanel = tab === 'send' || tab === 'nft' || tab === 'bridge' || tab === 'swap'
   const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalance.value) / 1e18).toFixed(2) : '0.00'
 
-  const TAB_LABELS: Record<Tab, string> = { send: 'Send', batch: 'Batch', nft: 'NFT Receipt', bridge: 'Bridge', swap: 'Swap' }
-
-  const Spinner = () => (
-    <span className="inline-block w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>
-  )
-
+  const Spinner = () => <span className="inline-block w-4 h-4 border-2 border-yellow-900 border-t-yellow-400 rounded-full animate-spin"></span>
   const SkeletonBox = ({ w = 'w-full', h = 'h-4' }: { w?: string; h?: string }) => (
-    <div className={`${w} ${h} bg-gray-800 rounded animate-pulse`}></div>
+    <div className={`${w} ${h} bg-gray-900 rounded animate-pulse`}></div>
   )
-
-  const TxBox = ({ result }: { result: { txHash: string; explorerUrl?: string } }) => (
-    <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500 animate-in fade-in slide-in-from-bottom-2">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-green-400 text-sm font-bold">✓ Transaction confirmed</span>
+  const TxBox = ({ result, amount, token }: { result: { txHash: string; explorerUrl?: string }, amount?: string, token?: string }) => (
+    <div className="rounded-xl p-4 border-l-4 border-yellow-600" style={{background:'#0e0e0e'}}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-bold" style={{color:'#c9a84c'}}>✓ Transaction confirmed</span>
+        {amount && token && (
+          <button onClick={() => shareOnTwitter(result.txHash, amount, token)}
+            className="text-xs px-2 py-1 rounded-lg border transition-colors hover:opacity-80"
+            style={{borderColor:'#1e3a5f', color:'#60a5fa', background:'#0a1628'}}>
+            🐦 Share
+          </button>
+        )}
       </div>
-      <p className="text-xs text-gray-400 font-mono truncate">{result.txHash}</p>
+      <p className="text-xs text-gray-500 font-mono truncate">{result.txHash}</p>
       {result.explorerUrl && (
-        <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-green-400 text-xs hover:underline mt-1 block">
+        <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer"
+          className="text-xs hover:underline mt-1 block" style={{color:'#c9a84c'}}>
           View on ArcScan →
         </a>
       )}
     </div>
   )
 
+  const WavesLogo = ({ size = 20, color = '#c9a84c' }: { size?: number, color?: string }) => (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+      <path d="M14 18 C14 18 24 10 34 18" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M14 24 C14 24 24 16 34 24" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M14 30 C14 30 24 22 34 30" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    </svg>
+  )
+
+  // ─── NOT CONNECTED — LANDING PAGE ────────────────────────────
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center px-4">
-        <div className="text-center w-full max-w-sm">
-          <div className="text-6xl mb-6">🌐</div>
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Arc Global Payouts</h1>
-          <p className="text-gray-400 mb-8 text-sm">Global USDC payment platform on Arc Network</p>
-          <div className="flex flex-col gap-3 mb-8 text-left">
-            <p className="text-xs text-gray-600 text-center mb-1">First time? Complete these steps:</p>
+      <div className="min-h-screen flex flex-col" style={{background:'#080808'}}>
+        {/* Landing Nav */}
+        <nav className="border-b px-6 py-4 flex justify-between items-center" style={{borderColor:'#141414'}}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#222'}}>
+              <WavesLogo size={20} />
+            </div>
+            <div>
+              <div className="font-bold text-sm text-white">Arc Global Payouts</div>
+              <div className="text-xs font-bold tracking-widest" style={{color:'#c9a84c'}}>ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span></div>
+            </div>
+          </div>
+          <a href="https://github.com/GoGoSns/arc-payouts" target="_blank" rel="noopener noreferrer"
+            className="text-xs px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+            style={{borderColor:'#222', color:'#888', background:'#111'}}>
+            GitHub ↗
+          </a>
+        </nav>
+
+        {/* Hero */}
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 text-center">
+          <div className="w-20 h-20 border rounded-2xl flex items-center justify-center mb-8" style={{background:'#111', borderColor:'#2a2a2a'}}>
+            <WavesLogo size={40} />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
+            Global USDC Payments<br/>
+            <span style={{color:'#c9a84c'}}>on Arc Network</span>
+          </h1>
+          <p className="text-gray-500 mb-12 max-w-md text-lg leading-relaxed">
+            Send, bridge, swap and batch pay with USDC. Sub-second finality. Zero complexity.
+          </p>
+
+          {/* Feature cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 w-full max-w-2xl">
+            {[
+              { icon: '💸', label: 'Send', desc: 'Instant USDC transfers' },
+              { icon: '🌉', label: 'Bridge', desc: 'Cross-chain in seconds' },
+              { icon: '🔄', label: 'Swap', desc: 'USDC ↔ EURC ↔ ETH' },
+              { icon: '📋', label: 'Batch', desc: 'Pay hundreds at once' },
+            ].map(f => (
+              <div key={f.label} className="rounded-xl p-4 border text-left transition-colors hover:border-yellow-900"
+                style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+                <div className="text-2xl mb-2">{f.icon}</div>
+                <div className="text-sm font-bold text-white">{f.label}</div>
+                <div className="text-xs mt-1" style={{color:'#555'}}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Steps */}
+          <div className="flex flex-col gap-3 w-full max-w-xs mb-8">
+            <p className="text-xs font-bold tracking-widest" style={{color:'#444'}}>GETTING STARTED</p>
             <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+              className="flex items-center gap-3 border rounded-xl px-4 py-3 hover:border-yellow-900 transition-colors"
+              style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <span className="text-lg">⚙️</span>
-              <div><div className="text-sm font-medium text-white">1. Add Arc Testnet</div><div className="text-xs text-gray-500">Auto-add to MetaMask</div></div>
-              <span className="ml-auto text-gray-600 text-xs">↗</span>
+              <div className="text-left">
+                <div className="text-sm font-medium text-white">1. Add Arc Testnet</div>
+                <div className="text-xs" style={{color:'#555'}}>Auto-add to MetaMask</div>
+              </div>
+              <span className="ml-auto text-xs" style={{color:'#333'}}>↗</span>
             </a>
             <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+              className="flex items-center gap-3 border rounded-xl px-4 py-3 hover:border-yellow-900 transition-colors"
+              style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <span className="text-lg">🚰</span>
-              <div><div className="text-sm font-medium text-white">2. Get Test USDC</div><div className="text-xs text-gray-500">Free from Circle Faucet</div></div>
-              <span className="ml-auto text-gray-600 text-xs">↗</span>
+              <div className="text-left">
+                <div className="text-sm font-medium text-white">2. Get Test USDC</div>
+                <div className="text-xs" style={{color:'#555'}}>Free from Circle Faucet</div>
+              </div>
+              <span className="ml-auto text-xs" style={{color:'#333'}}>↗</span>
             </a>
           </div>
-          <button onClick={connectWallet} className="w-full px-8 py-4 bg-white text-black rounded-xl font-bold text-lg hover:bg-gray-100 active:scale-95 transition-all">
-            3. Connect Wallet
+
+          <button onClick={connectWallet}
+            className="px-10 py-4 rounded-xl font-bold text-lg active:scale-95 transition-all"
+            style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+            3. Connect Wallet →
           </button>
+          <p className="text-xs mt-4" style={{color:'#333'}}>MetaMask · WalletConnect · Coinbase Wallet</p>
+        </div>
+
+        <div className="text-center py-6 text-xs" style={{color:'#2a2a2a', borderTop:'1px solid #111'}}>
+          Arc Global Payouts · Built on Arc Network · by GoGo
         </div>
       </div>
     )
   }
 
+  // ─── CONNECTED APP ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{background:'#080808', color:'#fff'}}>
 
-      {/* TOAST NOTIFICATIONS */}
+      {/* TOASTS */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => (
-          <div key={t.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-auto transition-all animate-in slide-in-from-right-4 fade-in ${
-            t.type === 'success' ? 'bg-green-900 border border-green-700 text-green-300' :
-            t.type === 'error'   ? 'bg-red-900 border border-red-700 text-red-300' :
-                                   'bg-gray-900 border border-gray-700 text-gray-300'
-          }`}>
+          <div key={t.id} className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium pointer-events-auto border"
+            style={{
+              background: t.type === 'success' ? '#0a1a0a' : t.type === 'error' ? '#1a0a0a' : '#111',
+              borderColor: t.type === 'success' ? '#1a3a1a' : t.type === 'error' ? '#3a1a1a' : '#222',
+              color: t.type === 'success' ? '#4ade80' : t.type === 'error' ? '#f87171' : '#888',
+            }}>
             <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : <Spinner />}</span>
             <span>{t.message}</span>
-            <button onClick={() => removeToast(t.id)} className="ml-2 text-xs opacity-60 hover:opacity-100">✕</button>
+            <button onClick={() => removeToast(t.id)} className="ml-2 text-xs opacity-40 hover:opacity-100">✕</button>
           </div>
         ))}
       </div>
 
+      {/* QR MODAL */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.8)'}}>
+          <div className="rounded-2xl p-6 border w-80" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-bold text-sm">Your Wallet Address</span>
+              <button onClick={() => setShowQR(false)} className="text-gray-500 hover:text-white">✕</button>
+            </div>
+            <div className="bg-white p-4 rounded-xl mb-4 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-6xl mb-2">📱</div>
+                <div className="text-xs text-gray-400 font-mono break-all">{address}</div>
+              </div>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(address || ''); addToast('success', 'Address copied!'); setShowQR(false) }}
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
+              style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+              Copy Address
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* NAVBAR */}
-      <nav className="border-b border-gray-800 px-4 md:px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🌐</span>
+      <nav className="border-b px-4 md:px-6 py-4 flex justify-between items-center" style={{background:'#080808', borderColor:'#141414'}}>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#1e1e1e'}}>
+            <WavesLogo size={20} />
+          </div>
           <div>
-            <div className="font-bold text-sm">Arc Global Payouts</div>
-            <div className="text-xs text-gray-500 hidden md:block">ARC NETWORK</div>
+            <div className="font-bold text-sm text-white">Arc Global Payouts</div>
+            <div className="text-xs font-bold tracking-widest" style={{color:'#c9a84c'}}>
+              ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span>
+            </div>
           </div>
         </div>
 
-        {/* Desktop nav */}
+        {/* Desktop */}
         <div className="hidden md:flex items-center gap-3">
           <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-gray-900 rounded-full px-3 py-1 hover:bg-gray-800 transition-colors">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-xs">Arc Testnet</span>
-            <span className="text-xs text-gray-600">⚙</span>
+            className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:opacity-80"
+            style={{background:'#111', borderColor:'#1e1e1e'}}>
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#c9a84c'}}></div>
+            <span className="text-xs text-gray-400">Arc Testnet</span>
           </a>
-          <div className="bg-gray-900 rounded-full px-3 py-1 text-xs">USDC</div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-purple-500 rounded-full"></div>
-            <span className="text-xs text-gray-400">{address?.slice(0,6)}...{address?.slice(-4)}</span>
-          </div>
-          <Link href="/history" className="text-xs text-gray-400 hover:text-white transition-colors">History</Link>
+          <div className="border rounded-full px-3 py-1 text-xs" style={{background:'#111', borderColor:'#1e1e1e', color:'#c9a84c'}}>USDC</div>
+          <button onClick={() => setShowQR(true)} className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:opacity-80" style={{background:'#111', borderColor:'#1e1e1e'}}>
+            <div className="w-6 h-6 rounded-full" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)'}}></div>
+            <span className="text-xs text-gray-500">{address?.slice(0,6)}...{address?.slice(-4)}</span>
+            <span className="text-xs" style={{color:'#444'}}>📱</span>
+          </button>
+          <Link href="/history" className="text-xs transition-colors hover:opacity-80" style={{color:'#666'}}>History</Link>
           <div className="relative">
             <button onClick={() => setShowHelp(!showHelp)}
-              className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center justify-center">?</button>
+              className="w-6 h-6 rounded-full border text-xs flex items-center justify-center transition-colors hover:border-yellow-800"
+              style={{background:'#111', borderColor:'#222', color:'#666'}}>?</button>
             {showHelp && (
-              <div className="absolute right-0 top-8 w-64 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 p-3">
-                <div className="text-xs text-gray-400 font-medium mb-3 px-1">🛠 Developer Tools</div>
-                <div className="flex flex-col gap-1">
-                  {[
-                    { href: 'https://faucet.circle.com', icon: '🚰', title: 'Test USDC Faucet', sub: 'faucet.circle.com' },
-                    { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Arc Testnet Setup', sub: 'thirdweb.com/arc-testnet' },
-                    { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'testnet.arcscan.app' },
-                  ].map(item => (
-                    <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setShowHelp(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors">
-                      <span className="text-sm">{item.icon}</span>
-                      <div><div className="text-sm font-medium text-white">{item.title}</div><div className="text-xs text-gray-500">{item.sub}</div></div>
-                    </a>
-                  ))}
-                </div>
-                <div className="border-t border-gray-800 mt-2 pt-2 px-1">
-                  <div className="text-xs text-gray-600">Arc Global Payouts v1.0</div>
+              <div className="absolute right-0 top-8 w-64 border rounded-xl shadow-2xl z-50 p-3" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+                <div className="text-xs font-bold mb-3 px-1" style={{color:'#c9a84c'}}>🛠 Developer Tools</div>
+                {[
+                  { href: 'https://faucet.circle.com', icon: '🚰', title: 'Test USDC Faucet', sub: 'faucet.circle.com' },
+                  { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Arc Testnet Setup', sub: 'thirdweb.com' },
+                  { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'testnet.arcscan.app' },
+                ].map(item => (
+                  <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setShowHelp(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:opacity-80" style={{background:'transparent'}}>
+                    <span className="text-sm">{item.icon}</span>
+                    <div><div className="text-sm font-medium text-white">{item.title}</div><div className="text-xs" style={{color:'#444'}}>{item.sub}</div></div>
+                  </a>
+                ))}
+                <div className="border-t mt-2 pt-2 px-1" style={{borderColor:'#141414'}}>
+                  <div className="text-xs" style={{color:'#333'}}>Arc Global Payouts v3.0 · by GoGo</div>
                 </div>
               </div>
             )}
           </div>
-          <button onClick={() => disconnect()} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Disconnect</button>
+          <button onClick={() => disconnect()} className="text-xs transition-colors hover:text-red-400" style={{color:'#444'}}>Disconnect</button>
         </div>
 
         {/* Mobile hamburger */}
         <button className="md:hidden flex flex-col gap-1.5 p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-          <span className={`block w-5 h-0.5 bg-white transition-all ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
-          <span className={`block w-5 h-0.5 bg-white transition-all ${mobileMenuOpen ? 'opacity-0' : ''}`}></span>
-          <span className={`block w-5 h-0.5 bg-white transition-all ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
+          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} style={{background:'#888'}}></span>
+          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'opacity-0' : ''}`} style={{background:'#888'}}></span>
+          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} style={{background:'#888'}}></span>
         </button>
       </nav>
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-gray-950 border-b border-gray-800 px-4 py-4 flex flex-col gap-3">
+        <div className="md:hidden border-b px-4 py-4 flex flex-col gap-3" style={{background:'#0a0a0a', borderColor:'#141414'}}>
           <div className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-gray-300">Arc Testnet</span>
-            <span className="ml-auto text-gray-400 text-xs font-mono">{address?.slice(0,6)}...{address?.slice(-4)}</span>
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#c9a84c'}}></div>
+            <span style={{color:'#888'}}>Arc Testnet</span>
+            <span className="ml-auto text-xs font-mono" style={{color:'#444'}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
           </div>
-          <div className="flex flex-col gap-2">
-            <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white py-1">🚰 Get Test USDC</a>
-            <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white py-1">⚙️ Network Setup</a>
-            <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white py-1">🔍 ArcScan Explorer</a>
-            <Link href="/history" className="text-sm text-gray-400 hover:text-white py-1">📋 Transaction History</Link>
-          </div>
-          <button onClick={() => disconnect()} className="text-sm text-red-400 hover:text-red-300 text-left py-1">Disconnect Wallet</button>
+          {[
+            { href: 'https://faucet.circle.com', label: '🚰 Get Test USDC' },
+            { href: 'https://thirdweb.com/arc-testnet', label: '⚙️ Network Setup' },
+            { href: 'https://testnet.arcscan.app', label: '🔍 ArcScan Explorer' },
+          ].map(item => (
+            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className="text-sm py-1 transition-colors" style={{color:'#555'}}>{item.label}</a>
+          ))}
+          <Link href="/history" className="text-sm py-1" style={{color:'#555'}}>📋 Transaction History</Link>
+          <button onClick={() => { setShowQR(true); setMobileMenuOpen(false) }} className="text-sm py-1 text-left" style={{color:'#555'}}>📱 Show QR Code</button>
+          <button onClick={() => disconnect()} className="text-sm py-1 text-left text-red-500">Disconnect Wallet</button>
         </div>
       )}
 
       {/* TABS */}
-      <div className="border-b border-gray-800 px-4 md:px-6 overflow-x-auto">
-        <div className="flex gap-4 md:gap-6 min-w-max">
-          {(['send', 'batch', 'nft', 'bridge', 'swap'] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
-              {TAB_LABELS[t]}
+      <div className="border-b px-4 md:px-6 overflow-x-auto" style={{borderColor:'#111'}}>
+        <div className="flex gap-0 min-w-max">
+          {TAB_CONFIG.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id as Tab)}
+              className="py-3 px-4 text-sm font-medium border-b-2 transition-all flex items-center gap-2 whitespace-nowrap"
+              style={{
+                color: tab === t.id ? '#c9a84c' : '#444',
+                borderBottomColor: tab === t.id ? '#c9a84c' : 'transparent',
+              }}>
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
@@ -436,59 +535,111 @@ export default function Home() {
 
         {showSidePanel && (
           <div className="flex-1 flex items-start justify-center p-4 md:p-8">
-            <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-5 md:p-6">
+            <div className="w-full max-w-md border rounded-2xl p-5 md:p-6" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
 
               {/* SEND */}
               {tab === 'send' && (
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4 focus-within:ring-1 focus-within:ring-gray-600 transition-all">
-                      <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
-                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
-                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold tracking-wider" style={{color:'#444'}}>YOU PAY</label>
+                    <span className="text-xs" style={{color:'#444'}}>Balance: ${balanceFormatted || '—'}</span>
+                  </div>
+                  <div className="rounded-xl p-4 border transition-all focus-within:border-yellow-900" style={{background:'#080808', borderColor:'#181818'}}>
+                    <div className="flex items-center gap-3">
+                      <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0"
+                        className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
+                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
+                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
+                        <span className="text-sm font-bold text-gray-300">USDC</span>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                    <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                   </div>
+
                   <div className="flex justify-center">
-                    <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">↓</div>
+                    <div className="w-8 h-8 border rounded-lg flex items-center justify-center text-sm" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#333'}}>↓</div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">TO</label>
-                    <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="0x..." className="w-full bg-gray-800 rounded-xl p-4 text-sm outline-none placeholder-gray-600 focus:ring-1 focus:ring-gray-600 transition-all" />
-                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+
+                  <label className="text-xs font-bold tracking-wider" style={{color:'#444'}}>TO</label>
+                  <div className="rounded-xl p-4 border transition-all focus-within:border-yellow-900" style={{background:'#080808', borderColor:'#181818'}}>
+                    <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="Wallet address or ENS"
+                      className="bg-transparent text-sm outline-none w-full" style={{color:'#888'}} />
+                    <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                   </div>
-                  {singleAmount && (
-                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-400"><span>Network fee</span><span>~0.009 USDC</span></div>
-                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 USDC = 1 USDC</span></div>
-                      <div className="flex justify-between font-bold"><span>Total sent</span><span>{singleAmount} USDC</span></div>
+
+                  {/* Favorites */}
+                  {favorites.length > 0 && (
+                    <div>
+                      <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>FAVORITES</div>
+                      <div className="flex flex-wrap gap-2">
+                        {favorites.map((f, i) => (
+                          <button key={i} onClick={() => setSingleAddress(f.address)}
+                            className="text-xs px-2 py-1 border rounded-lg transition-colors hover:border-yellow-900"
+                            style={{background:'#141414', borderColor:'#222', color:'#888'}}>
+                            ⭐ {f.name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
+
+                  {/* Save to favorites */}
+                  {singleAddress && (
+                    <div>
+                      {!showFavInput ? (
+                        <button onClick={() => setShowFavInput(true)} className="text-xs transition-colors hover:opacity-80" style={{color:'#444'}}>
+                          + Save to favorites
+                        </button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input value={favName} onChange={e => setFavName(e.target.value)} placeholder="Label (e.g. Alice)"
+                            className="flex-1 text-xs px-3 py-2 border rounded-lg outline-none" style={{background:'#141414', borderColor:'#222', color:'#fff'}} />
+                          <button onClick={addFavorite} className="text-xs px-3 py-2 rounded-lg font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>Save</button>
+                          <button onClick={() => setShowFavInput(false)} className="text-xs" style={{color:'#444'}}>✕</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {singleAmount && (
+                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Network fee</span><span style={{color:'#666'}}>~0.009 USDC</span></div>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Rate</span><span style={{color:'#666'}}>1 USDC = 1 USDC</span></div>
+                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
+                        <span className="text-white">Total sent</span><span style={{color:'#c9a84c'}}>{singleAmount} USDC</span>
+                      </div>
+                    </div>
+                  )}
+
                   <button onClick={sendSingle} disabled={paying}
-                    className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 active:scale-95 disabled:opacity-50 transition-all">
-                    {paying ? <span className="flex items-center justify-center gap-2"><Spinner />Sending...</span> : 'Confirm transfer'}
+                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
+                    style={{background: paying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+                    {paying ? <span className="flex items-center justify-center gap-2"><Spinner />SENDING...</span> : 'CONFIRM TRANSFER'}
                   </button>
-                  {txResult && <TxBox result={txResult} />}
-                  <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · Powered by Arc App Kit</div>
+                  {txResult && <TxBox result={txResult} amount={singleAmount} token="USDC" />}
+                  <div className="text-center text-xs" style={{color:'#222'}}>Arc Testnet · sub-second finality · Powered by Arc App Kit</div>
                 </div>
               )}
 
               {/* NFT */}
               {tab === 'nft' && (
                 <div className="space-y-4">
-                  <h2 className="font-bold text-lg">🎨 NFT Receipt Image</h2>
-                  <p className="text-gray-400 text-sm">This image will be minted as an NFT receipt after each payment.</p>
-                  <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-gray-600 transition-colors">
+                  <h2 className="font-bold text-lg text-white">🎨 NFT Receipt Image</h2>
+                  <p className="text-sm" style={{color:'#555'}}>This image will be minted as an NFT receipt after each payment.</p>
+                  <div className="border-2 border-dashed rounded-xl p-8 text-center transition-colors hover:border-yellow-900" style={{borderColor:'#1a1a1a'}}>
                     {nftImagePreview ? <img src={nftImagePreview} alt="NFT" className="w-32 h-32 rounded-xl object-cover mx-auto mb-3" /> : <div className="text-4xl mb-3">🎨</div>}
                     <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage}
-                      className="px-4 py-2 bg-purple-600 rounded-lg text-sm hover:bg-purple-700 active:scale-95 disabled:opacity-50 transition-all">
+                      className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
+                      style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
                       {uploadingImage ? <span className="flex items-center gap-2"><Spinner />Uploading...</span> : nftImageUrl ? '✅ Image Uploaded' : 'Select Image'}
                     </button>
                     <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} className="hidden" />
                   </div>
-                  {nftImageUrl && <div className="bg-green-900/30 border border-green-800 rounded-lg p-3 text-sm text-green-400">✅ Uploaded to IPFS — payments will include this NFT receipt</div>}
+                  {nftImageUrl && (
+                    <div className="border rounded-lg p-3 text-sm" style={{background:'#0a1a0a', borderColor:'#1a3a1a', color:'#4ade80'}}>
+                      ✅ Uploaded to IPFS — payments will include this NFT receipt
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -496,72 +647,92 @@ export default function Home() {
               {tab === 'bridge' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs text-gray-400 mb-2 block">FROM</label>
+                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>FROM</label>
                     <div className="grid grid-cols-3 gap-2">
                       {CHAINS.filter(c => c.id !== bridgeTo).map(chain => (
                         <button key={chain.id} onClick={() => setBridgeFrom(chain.id)}
-                          className={`py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95 ${bridgeFrom === chain.id ? 'border-white text-white bg-gray-700' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                          className="py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95"
+                          style={{
+                            borderColor: bridgeFrom === chain.id ? '#c9a84c' : '#1a1a1a',
+                            color: bridgeFrom === chain.id ? '#c9a84c' : '#444',
+                            background: bridgeFrom === chain.id ? '#1a1500' : '#080808',
+                          }}>
                           <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
                           {chain.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">YOU SEND</label>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4 focus-within:ring-1 focus-within:ring-gray-600 transition-all">
-                      <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
-                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
-                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+
+                  <div className="rounded-xl p-4 border focus-within:border-yellow-900 transition-all" style={{background:'#080808', borderColor:'#181818'}}>
+                    <div className="flex items-center gap-3">
+                      <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0"
+                        className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
+                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
+                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
+                        <span className="text-sm font-bold text-gray-300">USDC</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 px-1">
+                    <div className="flex items-center gap-2 mt-2">
                       <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeFrom)?.dot}`}></div>
-                      <span className="text-xs text-gray-500">{CHAINS.find(c => c.id === bridgeFrom)?.label}</span>
+                      <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span>
                     </div>
                   </div>
+
                   <div className="flex justify-center">
-                    <button onClick={flipBridge} className="w-10 h-10 bg-gray-800 border border-gray-700 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 hover:border-gray-500 active:scale-95 transition-all text-lg">⇅</button>
+                    <button onClick={flipBridge} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
+                      style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
                   </div>
+
                   <div>
-                    <label className="text-xs text-gray-400 mb-2 block">TO</label>
+                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>TO</label>
                     <div className="grid grid-cols-3 gap-2">
                       {CHAINS.filter(c => c.id !== bridgeFrom).map(chain => (
                         <button key={chain.id} onClick={() => setBridgeTo(chain.id)}
-                          className={`py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95 ${bridgeTo === chain.id ? 'border-white text-white bg-gray-700' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                          className="py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95"
+                          style={{
+                            borderColor: bridgeTo === chain.id ? '#c9a84c' : '#1a1a1a',
+                            color: bridgeTo === chain.id ? '#c9a84c' : '#444',
+                            background: bridgeTo === chain.id ? '#1a1500' : '#080808',
+                          }}>
                           <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
                           {chain.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
-                      <span className="text-3xl font-bold flex-1 text-gray-500">{bridgeAmount || '0'}</span>
-                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
-                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+
+                  <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl font-light flex-1 text-gray-600" style={{letterSpacing:'-1px'}}>{bridgeAmount || '0'}</span>
+                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
+                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
+                        <span className="text-sm font-bold text-gray-300">USDC</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 px-1">
+                    <div className="flex items-center gap-2 mt-2">
                       <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeTo)?.dot}`}></div>
-                      <span className="text-xs text-gray-500">{CHAINS.find(c => c.id === bridgeTo)?.label}</span>
+                      <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span>
                     </div>
                   </div>
+
                   {bridgeAmount && (
-                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-400"><span>From</span><span>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
-                      <div className="flex justify-between text-gray-400"><span>To</span><span>{CHAINS.find(c => c.id === bridgeTo)?.label}</span></div>
-                      <div className="flex justify-between text-gray-400"><span>Bridge fee</span><span>~0.01 USDC</span></div>
-                      <div className="flex justify-between font-bold"><span>You receive</span><span>{bridgeAmount} USDC</span></div>
+                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>From</span><span style={{color:'#666'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>To</span><span style={{color:'#666'}}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span></div>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Bridge fee</span><span style={{color:'#666'}}>~0.01 USDC</span></div>
+                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
+                        <span className="text-white">You receive</span><span style={{color:'#c9a84c'}}>{bridgeAmount} USDC</span>
+                      </div>
                     </div>
                   )}
+
                   <button onClick={sendBridge} disabled={bridgePaying}
-                    className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 active:scale-95 disabled:opacity-50 transition-all">
-                    {bridgePaying ? <span className="flex items-center justify-center gap-2"><Spinner />Bridging...</span> : 'Confirm bridge'}
+                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
+                    style={{background: bridgePaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+                    {bridgePaying ? <span className="flex items-center justify-center gap-2"><Spinner />BRIDGING...</span> : 'CONFIRM BRIDGE'}
                   </button>
-                  {bridgeResult && <TxBox result={bridgeResult} />}
-                  <div className="text-center text-xs text-gray-600">{CHAINS.find(c=>c.id===bridgeFrom)?.label} → {CHAINS.find(c=>c.id===bridgeTo)?.label} · USDC · Powered by Arc App Kit</div>
+                  {bridgeResult && <TxBox result={bridgeResult} amount={bridgeAmount} token="USDC" />}
                 </div>
               )}
 
@@ -569,79 +740,93 @@ export default function Home() {
               {tab === 'swap' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4 focus-within:ring-1 focus-within:ring-gray-600 transition-all">
-                      <input type="number" value={swapAmountIn} onChange={e => setSwapAmountIn(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
-                      <select value={swapTokenIn} onChange={e => setSwapTokenIn(e.target.value)}
-                        className="bg-gray-700 border border-gray-600 rounded-full px-3 py-1 text-sm font-medium outline-none cursor-pointer hover:bg-gray-600 transition-colors">
-                        {TOKENS.filter(t => t !== swapTokenOut).map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU PAY</label>
+                    <div className="rounded-xl p-4 border focus-within:border-yellow-900 transition-all" style={{background:'#080808', borderColor:'#181818'}}>
+                      <div className="flex items-center gap-3">
+                        <input type="number" value={swapAmountIn} onChange={e => setSwapAmountIn(e.target.value)} placeholder="0"
+                          className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
+                        <select value={swapTokenIn} onChange={e => setSwapTokenIn(e.target.value)}
+                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer transition-colors"
+                          style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
+                          {TOKENS.filter(t => t !== swapTokenOut).map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
-                  </div>
-                  <div className="flex justify-center">
-                    <button onClick={flipSwap} className="w-10 h-10 bg-gray-800 border border-gray-700 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 active:scale-95 transition-all text-lg">⇅</button>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
-                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
-                      <span className="text-3xl font-bold flex-1 text-gray-500">{swapAmountOut}</span>
-                      <select value={swapTokenOut} onChange={e => setSwapTokenOut(e.target.value)}
-                        className="bg-gray-700 border border-gray-600 rounded-full px-3 py-1 text-sm font-medium outline-none cursor-pointer hover:bg-gray-600 transition-colors">
-                        {TOKENS.filter(t => t !== swapTokenIn).map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
                   </div>
 
-                  {/* Slippage */}
+                  <div className="flex justify-center">
+                    <button onClick={flipSwap} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
+                      style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
+                  </div>
+
                   <div>
-                    <label className="text-xs text-gray-400 mb-2 block">SLIPPAGE TOLERANCE</label>
+                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU RECEIVE</label>
+                    <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-4xl font-light flex-1 text-gray-600" style={{letterSpacing:'-1px'}}>{swapAmountOut}</span>
+                        <select value={swapTokenOut} onChange={e => setSwapTokenOut(e.target.value)}
+                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
+                          style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
+                          {TOKENS.filter(t => t !== swapTokenIn).map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>SLIPPAGE</label>
                     <div className="flex gap-2 items-center flex-wrap">
                       {['0.5', '1', '3'].map(s => (
                         <button key={s} onClick={() => setSwapSlippage(s)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all active:scale-95 ${swapSlippage === s ? 'border-white text-white bg-gray-700' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95"
+                          style={{
+                            borderColor: swapSlippage === s ? '#c9a84c' : '#1a1a1a',
+                            color: swapSlippage === s ? '#c9a84c' : '#444',
+                            background: swapSlippage === s ? '#1a1500' : '#080808',
+                          }}>
                           {s}%
                         </button>
                       ))}
                       <input type="number" placeholder="Custom" value={['0.5','1','3'].includes(swapSlippage) ? '' : swapSlippage}
                         onChange={e => setSwapSlippage(e.target.value)}
-                        className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-gray-500 transition-colors" />
-                      {priceImpactHigh && (
-                        <span className="text-xs text-red-400 font-medium">⚠ High impact</span>
-                      )}
+                        className="w-20 border rounded-lg px-2 py-1.5 text-xs outline-none transition-colors"
+                        style={{background:'#080808', borderColor:'#1a1a1a', color:'#888'}} />
+                      {priceImpactHigh && <span className="text-xs font-bold text-red-400">⚠ High impact</span>}
                     </div>
                   </div>
 
                   {swapAmountIn && (
-                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 {swapTokenIn} = {(RATES[swapTokenIn]?.[swapTokenOut] || 1).toFixed(4)} {swapTokenOut}</span></div>
-                      <div className="flex justify-between text-gray-400"><span>Price impact</span><span className={priceImpactHigh ? 'text-red-400' : 'text-green-400'}>{priceImpactHigh ? '> 2%' : '< 0.1%'}</span></div>
-                      <div className="flex justify-between text-gray-400"><span>Slippage</span><span>{swapSlippage}%</span></div>
-                      <div className="flex justify-between text-gray-400"><span>Network fee</span><span>~0.009 USDC</span></div>
-                      <div className="flex justify-between font-bold border-t border-gray-700 pt-2"><span>Min. received</span><span>{(parseFloat(swapAmountOut) * (1 - parseFloat(swapSlippage)/100)).toFixed(4)} {swapTokenOut}</span></div>
+                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Rate</span><span style={{color:'#666'}}>1 {swapTokenIn} = {(RATES[swapTokenIn]?.[swapTokenOut] || 1).toFixed(4)} {swapTokenOut}</span></div>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Price impact</span><span className={priceImpactHigh ? 'text-red-400' : 'text-green-400'}>{priceImpactHigh ? '> 2%' : '< 0.1%'}</span></div>
+                      <div className="flex justify-between"><span style={{color:'#444'}}>Slippage</span><span style={{color:'#666'}}>{swapSlippage}%</span></div>
+                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
+                        <span className="text-white">Min. received</span>
+                        <span style={{color:'#c9a84c'}}>{(parseFloat(swapAmountOut) * (1 - parseFloat(swapSlippage)/100)).toFixed(4)} {swapTokenOut}</span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Route */}
-                  <div className="bg-gray-800/50 rounded-xl p-3">
-                    <div className="text-xs text-gray-500 mb-2">ROUTE</div>
+                  <div className="border rounded-xl p-3" style={{background:'#080808', borderColor:'#111'}}>
+                    <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>ROUTE</div>
                     <div className="flex items-center gap-2 text-xs flex-wrap">
-                      <span className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 font-medium">{swapTokenIn}</span>
-                      <span className="text-gray-600">→</span>
-                      <span className="bg-gray-800 border border-green-900 text-green-400 rounded-lg px-2 py-1 font-medium">Arc Pool</span>
-                      <span className="text-gray-600">→</span>
-                      <span className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 font-medium">{swapTokenOut}</span>
+                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#141414', borderColor:'#1a1a1a', color:'#c9a84c'}}>{swapTokenIn}</span>
+                      <span style={{color:'#333'}}>→</span>
+                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#0a1a0a', borderColor:'#1a3a1a', color:'#4ade80'}}>Arc Pool</span>
+                      <span style={{color:'#333'}}>→</span>
+                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#141414', borderColor:'#1a1a1a', color:'#c9a84c'}}>{swapTokenOut}</span>
                     </div>
-                    <div className="text-xs text-gray-600 mt-2">Best route · Arc DEX · 0.3% fee</div>
+                    <div className="text-xs mt-2" style={{color:'#333'}}>Best route · Arc DEX · 0.3% fee</div>
                   </div>
 
                   <button onClick={sendSwap} disabled={swapPaying}
-                    className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 active:scale-95 disabled:opacity-50 transition-all">
-                    {swapPaying ? <span className="flex items-center justify-center gap-2"><Spinner />Swapping...</span> : 'Confirm swap'}
+                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
+                    style={{background: swapPaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+                    {swapPaying ? <span className="flex items-center justify-center gap-2"><Spinner />SWAPPING...</span> : 'CONFIRM SWAP'}
                   </button>
-                  {swapResult && <TxBox result={swapResult} />}
-                  <div className="text-center text-xs text-gray-600">Arc Testnet · {swapTokenIn} → {swapTokenOut} · Slippage {swapSlippage}% · Powered by Arc App Kit</div>
+                  {swapResult && <TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn} />}
                 </div>
               )}
             </div>
@@ -652,57 +837,65 @@ export default function Home() {
         {tab === 'batch' && (
           <div className="flex-1 p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-              <h2 className="text-xl font-bold">Batch Payout</h2>
+              <h2 className="text-xl font-bold text-white">📋 Batch Payout</h2>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={downloadTemplate} className="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 active:scale-95 transition-all">📥 Template</button>
-                <button onClick={() => fileRef.current?.click()} className="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 active:scale-95 transition-all">📤 Import CSV</button>
+                <button onClick={downloadTemplate} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>📥 Template</button>
+                <button onClick={() => fileRef.current?.click()} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>📤 Import CSV</button>
                 <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
                 {pendingCount > 0 && (
-                  <button onClick={sendBatch} disabled={batchPaying} className="px-3 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-100 active:scale-95 disabled:opacity-50 transition-all">
+                  <button onClick={sendBatch} disabled={batchPaying} className="px-3 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
+                    style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
                     {batchPaying ? <span className="flex items-center gap-2"><Spinner />Sending...</span> : `🚀 Send to ${pendingCount}`}
                   </button>
                 )}
               </div>
             </div>
-            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
+            <div className="border rounded-xl p-4 mb-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
-                <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..." className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 md:col-span-2" />
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name"
+                  className="border rounded-lg px-3 py-2 text-sm outline-none" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
+                <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..."
+                  className="border rounded-lg px-3 py-2 text-sm outline-none md:col-span-2" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
                 <div className="flex gap-2">
-                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 flex-1" />
-                  <button onClick={addRecipient} className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 active:scale-95 transition-all font-bold">+</button>
+                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number"
+                    className="border rounded-lg px-3 py-2 text-sm outline-none flex-1" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
+                  <button onClick={addRecipient} className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95 transition-all"
+                    style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>+</button>
                 </div>
               </div>
             </div>
-            <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden overflow-x-auto">
+            <div className="border rounded-xl overflow-hidden overflow-x-auto" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               {recipients.length === 0 ? (
-                <div className="p-12 text-center text-gray-600">
+                <div className="p-12 text-center">
                   <div className="text-4xl mb-3">👥</div>
-                  <p>No recipients yet</p>
-                  <p className="text-sm mt-1">Add manually or import CSV</p>
+                  <p style={{color:'#444'}}>No recipients yet</p>
+                  <p className="text-sm mt-1" style={{color:'#333'}}>Add manually or import CSV</p>
                 </div>
               ) : (
                 <table className="w-full min-w-[600px]">
-                  <thead className="border-b border-gray-800">
+                  <thead className="border-b" style={{borderColor:'#1a1a1a'}}>
                     <tr>
                       {['NAME','ADDRESS','AMOUNT','STATUS','NFT','TX'].map(h => (
-                        <th key={h} className="text-left p-4 text-xs text-gray-400">{h}</th>
+                        <th key={h} className="text-left p-4 text-xs font-bold tracking-wider" style={{color:'#444'}}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {recipients.map(r => (
-                      <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
-                        <td className="p-4 text-sm font-medium">{r.name}</td>
-                        <td className="p-4 text-sm text-gray-400 font-mono">{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
-                        <td className="p-4 text-sm font-bold">{r.amount} USDC</td>
+                      <tr key={r.id} className="border-b transition-colors" style={{borderColor:'#141414'}}>
+                        <td className="p-4 text-sm font-medium text-white">{r.name}</td>
+                        <td className="p-4 text-sm font-mono" style={{color:'#555'}}>{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                        <td className="p-4 text-sm font-bold" style={{color:'#c9a84c'}}>{r.amount} USDC</td>
                         <td className="p-4">
-                          <span className={`px-2 py-1 rounded text-xs ${r.status === 'paid' ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
+                          <span className="px-2 py-1 rounded text-xs font-bold"
+                            style={r.status === 'paid'
+                              ? {background:'#0a1a0a', color:'#4ade80'}
+                              : {background:'#1a1500', color:'#c9a84c'}}>
                             {r.status === 'paid' ? '✅ Paid' : '⏳ Pending'}
                           </span>
                         </td>
-                        <td className="p-4">{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs hover:underline">View</a> : <span className="text-gray-600 text-xs">—</span>}</td>
-                        <td className="p-4">{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">Explorer</a> : <span className="text-gray-600 text-xs">—</span>}</td>
+                        <td className="p-4">{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{color:'#c9a84c'}}>View</a> : <span className="text-xs" style={{color:'#333'}}>—</span>}</td>
+                        <td className="p-4">{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{color:'#6366f1'}}>Explorer</a> : <span className="text-xs" style={{color:'#333'}}>—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -714,111 +907,109 @@ export default function Home() {
 
         {/* RIGHT PANEL */}
         {showSidePanel && (
-          <div className="w-full md:w-72 border-t md:border-t-0 md:border-l border-gray-800 p-4 md:p-5 flex flex-col gap-4">
+          <div className="w-full md:w-72 border-t md:border-t-0 md:border-l p-4 md:p-5 flex flex-col gap-4" style={{borderColor:'#111'}}>
 
-            {/* Balance */}
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="text-xs text-gray-400 mb-1">USDC BALANCE</div>
+            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+              <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>USDC BALANCE</div>
               {balanceLoading ? (
-                <div className="space-y-2 mt-1"><SkeletonBox h="h-8" w="w-24" /><SkeletonBox h="h-3" w="w-32" /></div>
+                <div className="space-y-2"><SkeletonBox h="h-8" w="w-24" /><SkeletonBox h="h-3" w="w-32" /></div>
               ) : (
                 <>
-                  <div className="text-3xl font-bold">${balanceFormatted}</div>
-                  <div className="text-xs text-blue-400 mt-1">Arc Testnet · Live balance</div>
+                  <div className="text-3xl font-light text-white" style={{letterSpacing:'-1px'}}>${balanceFormatted}</div>
+                  <div className="text-xs mt-1 font-bold" style={{color:'#c9a84c'}}>Arc Testnet · Live</div>
                 </>
               )}
             </div>
 
-            {/* Analytics */}
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="text-xs text-gray-400 mb-3">ANALYTICS</div>
+            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>ANALYTICS</div>
               <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="bg-gray-800 rounded-lg p-2">
-                  <div className="text-xs text-gray-500">Total sent</div>
-                  <div className="text-sm font-bold">${totalPaid.toFixed(2)}</div>
+                <div className="rounded-lg p-2" style={{background:'#080808'}}>
+                  <div className="text-xs" style={{color:'#444'}}>Total sent</div>
+                  <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${totalPaid.toFixed(2)}</div>
                 </div>
-                <div className="bg-gray-800 rounded-lg p-2">
-                  <div className="text-xs text-gray-500">Transactions</div>
-                  <div className="text-sm font-bold">{transactions.length}</div>
+                <div className="rounded-lg p-2" style={{background:'#080808'}}>
+                  <div className="text-xs" style={{color:'#444'}}>Transactions</div>
+                  <div className="text-sm font-bold text-white">{transactions.length}</div>
                 </div>
               </div>
-              {/* Mini bar chart */}
               {transactions.length > 0 && (
                 <div>
-                  <div className="text-xs text-gray-600 mb-2">Recent volume</div>
+                  <div className="text-xs mb-2" style={{color:'#333'}}>Recent volume</div>
                   <div className="flex items-end gap-1 h-10">
                     {transactions.slice(-7).map((t, i) => {
                       const maxAmt = Math.max(...transactions.slice(-7).map(x => parseFloat(x.amount || '0')))
                       const h = maxAmt > 0 ? Math.max(4, (parseFloat(t.amount || '0') / maxAmt) * 36) : 4
-                      return <div key={i} style={{ height: h }} className="flex-1 bg-gray-600 rounded-sm hover:bg-gray-400 transition-colors cursor-pointer" title={`$${t.amount}`}></div>
+                      return <div key={i} style={{height: h, background: i === transactions.slice(-7).length - 1 ? '#c9a84c' : '#1a1500'}} className="flex-1 rounded-sm transition-colors cursor-pointer" title={`$${t.amount}`}></div>
                     })}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Holdings */}
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="text-xs text-gray-400 mb-3">HOLDINGS</div>
+            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>HOLDINGS</div>
               {balanceLoading ? (
                 <div className="flex items-center gap-2"><SkeletonBox w="w-8" h="h-8" /><div className="flex-1 space-y-1"><SkeletonBox h="h-3" /><SkeletonBox h="h-3" w="w-16" /></div></div>
               ) : (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">$</div>
-                    <div><div className="text-sm font-medium">USDC</div><div className="text-xs text-gray-500">Arc Testnet</div></div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>$</div>
+                    <div><div className="text-sm font-medium text-white">USDC</div><div className="text-xs" style={{color:'#444'}}>Arc Testnet</div></div>
                   </div>
-                  <div className="text-sm font-medium">${balanceFormatted}</div>
+                  <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${balanceFormatted}</div>
                 </div>
               )}
             </div>
 
-            {/* Tools */}
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="text-xs text-gray-400 mb-3">TOOLS</div>
+            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>TOOLS</div>
               <div className="flex flex-col gap-2">
                 {[
-                  { href: 'https://faucet.circle.com', icon: '🚰', title: 'Get Test USDC', sub: 'faucet.circle.com', accent: true },
-                  { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Network Setup', sub: 'Arc Testnet', accent: false },
-                  { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'Track transactions', accent: false },
+                  { href: 'https://faucet.circle.com', icon: '🚰', title: 'Get Test USDC', sub: 'faucet.circle.com', gold: true },
+                  { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Network Setup', sub: 'Arc Testnet', gold: false },
+                  { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'Track transactions', gold: false },
                 ].map(item => (
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${item.accent ? 'bg-blue-900/30 border border-blue-800/50 hover:bg-blue-900/50' : 'bg-gray-800 border border-gray-700 hover:bg-gray-700'}`}>
+                    className="flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors hover:border-yellow-900"
+                    style={{
+                      background: item.gold ? '#1a1500' : '#080808',
+                      borderColor: item.gold ? '#2a2500' : '#141414',
+                    }}>
                     <span className="text-sm">{item.icon}</span>
                     <div className="flex-1">
-                      <div className={`text-xs font-medium ${item.accent ? 'text-blue-300' : 'text-gray-300'}`}>{item.title}</div>
-                      <div className="text-xs text-gray-500">{item.sub}</div>
+                      <div className="text-xs font-medium" style={{color: item.gold ? '#c9a84c' : '#888'}}>{item.title}</div>
+                      <div className="text-xs" style={{color:'#333'}}>{item.sub}</div>
                     </div>
-                    <span className="text-gray-600 text-xs">↗</span>
+                    <span className="text-xs" style={{color:'#222'}}>↗</span>
                   </a>
                 ))}
               </div>
             </div>
 
-            {/* Activity */}
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex-1">
+            <div className="border rounded-xl p-4 flex-1" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
               <div className="flex justify-between items-center mb-3">
-                <div className="text-xs text-gray-400">ACTIVITY</div>
+                <div className="text-xs font-bold tracking-wider" style={{color:'#444'}}>ACTIVITY</div>
                 <div className="flex gap-2 items-center">
-                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-white transition-colors">ArcScan</a>
-                  <span className="text-gray-700">·</span>
-                  <Link href="/history" className="text-xs text-gray-500 hover:text-white transition-colors">All txns</Link>
+                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:opacity-80" style={{color:'#333'}}>ArcScan</a>
+                  <span style={{color:'#222'}}>·</span>
+                  <Link href="/history" className="text-xs transition-colors hover:opacity-80" style={{color:'#333'}}>All txns</Link>
                 </div>
               </div>
               {transactions.length === 0 ? (
-                <div className="text-center text-gray-600 text-sm py-4">No transactions yet</div>
+                <div className="text-center text-sm py-4" style={{color:'#333'}}>No transactions yet</div>
               ) : (
                 <div className="space-y-3">
                   {transactions.slice(0, 5).map(t => (
-                    <div key={t.id} className="flex items-center justify-between hover:bg-gray-800/50 rounded-lg p-1 transition-colors">
+                    <div key={t.id} className="flex items-center justify-between p-1 rounded-lg transition-colors hover:opacity-80">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-red-900 rounded-full flex items-center justify-center text-xs">↗</div>
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs" style={{background:'#1a1500', color:'#c9a84c'}}>↗</div>
                         <div>
-                          <div className="text-xs font-medium">{t.name || 'Send USDC'}</div>
-                          <div className="text-xs text-gray-500">confirmed</div>
+                          <div className="text-xs font-medium text-white">{t.name || 'Send USDC'}</div>
+                          <div className="text-xs" style={{color:'#333'}}>confirmed</div>
                         </div>
                       </div>
-                      <div className="text-sm font-medium text-red-400">-{t.amount}</div>
+                      <div className="text-sm font-bold" style={{color:'#c9a84c'}}>-{t.amount}</div>
                     </div>
                   ))}
                 </div>
