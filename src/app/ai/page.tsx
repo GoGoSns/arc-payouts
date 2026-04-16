@@ -105,7 +105,7 @@ When user wants to send/bridge/swap:
   }
 
   const parseAction = (content: string): Message['action'] | undefined => {
-    const actionMatch = content.match(/ACTION:\s*(\{[^}]+\})/s)
+    const actionMatch = content.match(/ACTION:\s*(\{[^}]+\})/)
     if (!actionMatch) return undefined
     try {
       const actionStr = actionMatch[1]
