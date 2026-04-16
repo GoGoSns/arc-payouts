@@ -108,7 +108,7 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
       conversationHistory.push({ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser: ${userText}` }] })
 
       const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSy...`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AQ.Ab8RN6INF6U3v3PPeH81uatQN2OzpH-vyN6mq5NPdlFaiUtQ0g`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
