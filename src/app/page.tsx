@@ -216,7 +216,7 @@ const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalan
   const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
   const pendingCount = recipients.filter(r => r.status === 'pending').length
   const showSidePanel = tab === 'send' || tab === 'nft' || tab === 'bridge' || tab === 'swap'
-  const usdcFormatted = usdcBalance ? parseFloat(usdcBalance.formatted).toFixed(2) : '—'
+  const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalance.value) / 1e18).toFixed(2) : '0.00'
   const TAB_LABELS: Record<Tab, string> = { send: 'Send', batch: 'Batch Payout', nft: 'NFT Receipt', bridge: 'Bridge', swap: 'Swap' }
 
   const TxBox = ({ result }: { result: { txHash: string; explorerUrl?: string } }) => (
