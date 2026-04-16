@@ -35,8 +35,8 @@ export default function Home() {
   const { connect } = useConnect()
   const { disconnect } = useDisconnect()
 
-  // YENİ:
-const { data: usdcBalance, isLoading: balanceLoading } = useBalance({ address })
+ // YENİ:
+const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalance.value) / 1e18).toFixed(2) : '0.00'
 
   const [tab, setTab] = useState<Tab>('send')
   const [recipients, setRecipients] = useState<Recipient[]>([])
