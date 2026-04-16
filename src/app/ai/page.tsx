@@ -76,6 +76,7 @@ export default function AIPage() {
     try {
       const txs = getTransactionHistory()
       const balance = localStorage.getItem('arc_balance') || '0.00'
+      const totalSent = txs.reduce((s: number, t: any) => s + parseFloat(t.amount || '0'), 0)
       const recentTxs = txs.slice(0, 5).map((t: any) => `- ${t.name}: ${t.amount} USDC`).join('\n')
 
       const systemPrompt = `You are Arc AI, a friendly DeFi payment assistant for Arc Global Payouts on Arc Network by GoGo.
