@@ -1,7 +1,7 @@
-// Arc Global Payouts v3.1 — Dark Premium Gold
+// Arc Global Payouts v4.0
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
 import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
@@ -42,6 +42,7 @@ export default function Home() {
   const { disconnect } = useDisconnect()
   const { data: usdcBalance, isLoading: balanceLoading } = useBalance({ address })
 
+  const [darkMode, setDarkMode] = useState(true)
   const [tab, setTab] = useState<Tab>('send')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -78,6 +79,23 @@ export default function Home() {
   const [swapPaying, setSwapPaying] = useState(false)
   const [swapResult, setSwapResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+
+  const D = darkMode
+  const bg = D ? '#080808' : '#f8f9fa'
+  const card = D ? '#0e0e0e' : '#ffffff'
+  const border = D ? '#1a1a1a' : '#e8e8e8'
+  const field = D ? '#080808' : '#f5f5f5'
+  const fieldBorder = D ? '#181818' : '#e0e0e0'
+  const text = D ? '#ffffff' : '#000000'
+  const muted = D ? '#444444' : '#999999'
+  const subtle = D ? '#333333' : '#bbbbbb'
+
+  useEffect(() => {
+    const favs = localStorage.getItem('arc_favorites')
+    if (favs) setFavorites(JSON.parse(favs))
+    const txs = localStorage.getItem('arc_transactions')
+    if (txs) setTransactions(JSON.parse(txs))
+  }, [])
 
   const connectWallet = () => connect({ connector: injected() })
   const flipBridge = () => { const t = bridgeFrom; setBridgeFrom(bridgeTo); setBridgeTo(t) }
@@ -260,152 +278,145 @@ export default function Home() {
   const showSidePanel = tab === 'send' || tab === 'nft' || tab === 'bridge' || tab === 'swap'
   const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalance.value) / 1e18).toFixed(2) : '0.00'
 
-  const Spinner = () => <span className="inline-block w-4 h-4 border-2 border-yellow-900 border-t-yellow-400 rounded-full animate-spin"></span>
-  const SkeletonBox = ({ w = 'w-full', h = 'h-4' }: { w?: string; h?: string }) => (
-    <div className={`${w} ${h} bg-gray-900 rounded animate-pulse`}></div>
+  const Spinner = () => (
+    <span style={{ display:'inline-block', width:14, height:14, border:'2px solid #333', borderTopColor:'#c9a84c', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></span>
+  )
+
+  const SkeletonBox = ({ w = '100%', h = '16px' }: { w?: string, h?: string }) => (
+    <div style={{ width:w, height:h, background: D ? '#1a1a1a' : '#e8e8e8', borderRadius:6, animation:'pulse 1.5s ease infinite' }}></div>
   )
 
   const TxBox = ({ result, amount, token }: { result: { txHash: string; explorerUrl?: string }, amount?: string, token?: string }) => (
-    <div className="rounded-xl p-4 border-l-4" style={{background:'#0e0e0e', borderLeftColor:'#c9a84c'}}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-bold" style={{color:'#c9a84c'}}>✓ Transaction confirmed</span>
+    <div style={{ borderRadius:12, padding:14, background: D ? '#0e0e0e' : '#f9f5e8', borderLeft:'3px solid #c9a84c' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+        <span style={{ fontSize:12, fontWeight:700, color:'#c9a84c' }}>✓ Transaction confirmed</span>
         {amount && token && (
           <button onClick={() => shareOnTwitter(result.txHash, amount, token)}
-            className="text-xs px-2 py-1 rounded-lg border transition-colors"
-            style={{borderColor:'#1e3a5f', color:'#60a5fa', background:'#0a1628'}}>
+            style={{ fontSize:10, padding:'3px 8px', borderRadius:6, border:'1px solid #1e3a5f', color:'#60a5fa', background:'#0a1628', cursor:'pointer' }}>
             𝕏 Share
           </button>
         )}
       </div>
-      <p className="text-xs font-mono truncate" style={{color:'#555'}}>{result.txHash}</p>
+      <p style={{ fontSize:11, color: D ? '#555' : '#999', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{result.txHash}</p>
       {result.explorerUrl && (
-        <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer"
-          className="text-xs hover:underline mt-1 block" style={{color:'#c9a84c'}}>
+        <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#c9a84c', textDecoration:'none', marginTop:4, display:'block' }}>
           View on ArcScan →
         </a>
       )}
     </div>
   )
 
-  const WavesLogo = ({ size = 20, color = '#c9a84c' }: { size?: number, color?: string }) => (
+  const WavesLogo = ({ size = 20 }: { size?: number }) => (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-      <path d="M14 18 C14 18 24 10 34 18" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-      <path d="M14 24 C14 24 24 16 34 24" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-      <path d="M14 30 C14 30 24 22 34 30" stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M14 18 C14 18 24 10 34 18" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M14 24 C14 24 24 16 34 24" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M14 30 C14 30 24 22 34 30" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
     </svg>
   )
 
   const TabIcon = ({ short, active }: { short: string, active: boolean }) => (
     <span style={{
-      position: 'relative',
-      width: 18, height: 18,
-      border: `1px solid ${active ? '#c9a84c44' : '#1a1a1a'}`,
-      borderRadius: 4,
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      flexShrink: 0,
-      fontSize: 8,
-      fontWeight: 800,
-      color: active ? '#c9a84c' : '#333',
-      transition: 'all .3s',
+      position:'relative', width:16, height:16,
+      border:`1px solid ${active ? '#c9a84c44' : border}`,
+      borderRadius:3, display:'inline-flex', alignItems:'center', justifyContent:'center',
+      overflow:'hidden', flexShrink:0, fontSize:7, fontWeight:800,
+      color: active ? '#c9a84c' : muted, transition:'all .3s',
     }}>
       {active && (
         <span style={{
-          position: 'absolute',
-          width: '200%', height: '200%',
-          top: '-50%', left: '-50%',
-          background: 'conic-gradient(transparent 0deg, #c9a84c 60deg, transparent 120deg)',
-          animation: 'tabSweep 2s linear infinite',
+          position:'absolute', width:'200%', height:'200%', top:'-50%', left:'-50%',
+          background:'conic-gradient(transparent 0deg, #c9a84c 60deg, transparent 120deg)',
+          animation:'tabSweep 2s linear infinite',
         }} />
       )}
-      <span style={{
-        position: 'absolute',
-        inset: 2,
-        background: '#080808',
-        borderRadius: 2,
-        zIndex: 1,
-      }} />
-      <span style={{position: 'relative', zIndex: 2}}>{short}</span>
+      <span style={{ position:'absolute', inset:1, background: D ? '#080808' : '#ffffff', borderRadius:2, zIndex:1 }} />
+      <span style={{ position:'relative', zIndex:2 }}>{short}</span>
     </span>
   )
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex flex-col" style={{background:'#080808'}}>
-        <nav className="border-b px-6 py-4 flex justify-between items-center" style={{borderColor:'#141414'}}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#222'}}>
-              <WavesLogo size={20} />
+      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:'#080808' }}>
+        <style>{`
+          @keyframes tabSweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+          @keyframes sweepAnim { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+        `}</style>
+        <nav style={{ borderBottom:'1px solid #141414', padding:'14px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:34, height:34, background:'#111', border:'1px solid #1e1e1e', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <WavesLogo size={18} />
             </div>
             <div>
-              <div className="font-bold text-sm text-white">Arc Global Payouts</div>
-              <div className="text-xs font-bold tracking-widest" style={{color:'#c9a84c'}}>ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span></div>
+              <div style={{ fontWeight:700, fontSize:14, color:'#fff' }}>Arc Global Payouts</div>
+              <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, letterSpacing:'.8px' }}>ARC NETWORK <span style={{ color:'#444' }}>· by GoGo</span></div>
             </div>
           </div>
           <a href="https://github.com/GoGoSns/arc-payouts" target="_blank" rel="noopener noreferrer"
-            className="text-xs px-3 py-1.5 rounded-lg border" style={{borderColor:'#222', color:'#888', background:'#111'}}>
+            style={{ fontSize:11, padding:'5px 12px', background:'#111', border:'1px solid #1e1e1e', borderRadius:8, color:'#888', textDecoration:'none' }}>
             GitHub ↗
           </a>
         </nav>
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 text-center">
-          <div className="w-20 h-20 border rounded-2xl flex items-center justify-center mb-8" style={{background:'#111', borderColor:'#2a2a2a'}}>
-            <WavesLogo size={40} />
+        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 24px', textAlign:'center' }}>
+          <div style={{ position:'relative', width:72, height:72, marginBottom:28 }}>
+            <div style={{ position:'absolute', inset:-1, borderRadius:18, background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweepAnim 3s linear infinite', opacity:.5 }} />
+            <div style={{ position:'absolute', inset:1, background:'#111', borderRadius:17, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <WavesLogo size={36} />
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
-            Global USDC Payments<br/>
-            <span style={{color:'#c9a84c'}}>on Arc Network</span>
+          <h1 style={{ fontSize:40, fontWeight:800, letterSpacing:'-1px', marginBottom:12, lineHeight:1.1, color:'#fff' }}>
+            Global USDC Payments<br/><span style={{ color:'#c9a84c' }}>on Arc Network</span>
           </h1>
-          <p className="mb-12 max-w-md text-lg leading-relaxed" style={{color:'#555'}}>
-            Send, bridge, swap and batch pay with USDC. Sub-second finality. Zero complexity.
+          <p style={{ color:'#555', marginBottom:40, fontSize:16, lineHeight:1.7, maxWidth:420 }}>
+            Send, bridge, swap and batch pay with USDC.<br/>Sub-second finality. Zero complexity.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 w-full max-w-2xl">
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:40, width:'100%', maxWidth:560 }}>
             {[
-              { icon: '💸', label: 'Send', desc: 'Instant USDC transfers' },
-              { icon: '🌉', label: 'Bridge', desc: 'Cross-chain in seconds' },
-              { icon: '🔄', label: 'Swap', desc: 'USDC ↔ EURC ↔ ETH' },
-              { icon: '📋', label: 'Batch', desc: 'Pay hundreds at once' },
+              { path:'M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z', label:'Send', desc:'Instant USDC transfers' },
+              { path:'M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3m10 0h3a2 2 0 002-2v-3', label:'Bridge', desc:'Cross-chain in seconds' },
+              { path:'M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4', label:'Swap', desc:'USDC ↔ EURC ↔ ETH' },
+              { path:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75', label:'Batch', desc:'Pay hundreds at once' },
             ].map(f => (
-              <div key={f.label} className="rounded-xl p-4 border text-left transition-colors hover:border-yellow-900"
-                style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-                <div className="text-2xl mb-2">{f.icon}</div>
-                <div className="text-sm font-bold text-white">{f.label}</div>
-                <div className="text-xs mt-1" style={{color:'#555'}}>{f.desc}</div>
+              <div key={f.label} style={{ background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:14, padding:'14px 10px', textAlign:'left' }}>
+                <div style={{ width:28, height:28, background:'#1a1500', border:'1px solid #2a2500', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round">
+                    <path d={f.path}/>
+                  </svg>
+                </div>
+                <div style={{ fontSize:12, fontWeight:700, color:'#fff' }}>{f.label}</div>
+                <div style={{ fontSize:10, color:'#555', marginTop:2 }}>{f.desc}</div>
               </div>
             ))}
           </div>
-          <div className="flex flex-col gap-3 w-full max-w-xs mb-8">
-            <p className="text-xs font-bold tracking-widest" style={{color:'#444'}}>GETTING STARTED</p>
-            <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 border rounded-xl px-4 py-3 hover:border-yellow-900 transition-colors"
-              style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <span className="text-lg">⚙️</span>
-              <div className="text-left">
-                <div className="text-sm font-medium text-white">1. Add Arc Testnet</div>
-                <div className="text-xs" style={{color:'#555'}}>Auto-add to MetaMask</div>
-              </div>
-              <span className="ml-auto text-xs" style={{color:'#333'}}>↗</span>
-            </a>
-            <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 border rounded-xl px-4 py-3 hover:border-yellow-900 transition-colors"
-              style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <span className="text-lg">🚰</span>
-              <div className="text-left">
-                <div className="text-sm font-medium text-white">2. Get Test USDC</div>
-                <div className="text-xs" style={{color:'#555'}}>Free from Circle Faucet</div>
-              </div>
-              <span className="ml-auto text-xs" style={{color:'#333'}}>↗</span>
-            </a>
+          <div style={{ display:'flex', flexDirection:'column', gap:8, width:'100%', maxWidth:300, marginBottom:24 }}>
+            <p style={{ fontSize:9, fontWeight:700, letterSpacing:'.6px', color:'#333', textAlign:'center' }}>GETTING STARTED</p>
+            {[
+              { n:'1', t:'Add Arc Testnet', s:'Auto-add to MetaMask', href:'https://thirdweb.com/arc-testnet' },
+              { n:'2', t:'Get Test USDC', s:'Free from Circle Faucet', href:'https://faucet.circle.com' },
+            ].map(step => (
+              <a key={step.n} href={step.href} target="_blank" rel="noopener noreferrer"
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:12, textDecoration:'none' }}>
+                <div style={{ width:20, height:20, background:'#1a1500', border:'1px solid #2a2500', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800, color:'#c9a84c', flexShrink:0 }}>{step.n}</div>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:600, color:'#fff' }}>{step.t}</div>
+                  <div style={{ fontSize:10, color:'#555' }}>{step.s}</div>
+                </div>
+                <span style={{ marginLeft:'auto', fontSize:10, color:'#333' }}>↗</span>
+              </a>
+            ))}
           </div>
           <button onClick={connectWallet}
-            className="px-10 py-4 rounded-xl font-bold text-lg active:scale-95 transition-all"
-            style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+            style={{ padding:'14px 36px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', borderRadius:14, fontSize:15, fontWeight:800, cursor:'pointer', letterSpacing:'.3px' }}>
             3. Connect Wallet →
           </button>
-          <p className="text-xs mt-4" style={{color:'#333'}}>MetaMask · WalletConnect · Coinbase Wallet</p>
+          <p style={{ fontSize:11, color:'#2a2a2a', marginTop:10 }}>MetaMask · WalletConnect · Coinbase Wallet</p>
+          <div style={{ display:'flex', gap:16, marginTop:24 }}>
+            <Link href="/game" style={{ fontSize:12, color:'#c9a84c', textDecoration:'none' }}>🎮 Play Flappy USDC</Link>
+            <Link href="/ai" style={{ fontSize:12, color:'#60a5fa', textDecoration:'none' }}>🤖 AI Assistant</Link>
+          </div>
         </div>
-        <div className="text-center py-6 text-xs border-t" style={{color:'#2a2a2a', borderColor:'#111'}}>
+        <div style={{ textAlign:'center', padding:'16px', fontSize:10, color:'#1a1a1a', borderTop:'1px solid #111' }}>
           Arc Global Payouts · Built on Arc Network · by GoGo
         </div>
       </div>
@@ -413,50 +424,47 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{background:'#080808', color:'#fff'}}>
-
-      {/* tabSweep animation */}
-      <style>{`@keyframes tabSweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:bg, color:text, fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' }}>
+      <style>{`
+        @keyframes tabSweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+      `}</style>
 
       {/* TOASTS */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div style={{ position:'fixed', top:16, right:16, zIndex:50, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
         {toasts.map(t => (
-          <div key={t.id} className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium pointer-events-auto border"
-            style={{
-              background: t.type === 'success' ? '#0a1a0a' : t.type === 'error' ? '#1a0a0a' : '#111',
-              borderColor: t.type === 'success' ? '#1a3a1a' : t.type === 'error' ? '#3a1a1a' : '#222',
-              color: t.type === 'success' ? '#4ade80' : t.type === 'error' ? '#f87171' : '#888',
-            }}>
+          <div key={t.id} style={{
+            display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:12, fontSize:13, fontWeight:500, pointerEvents:'auto', border:'1px solid',
+            background: t.type === 'success' ? '#0a1a0a' : t.type === 'error' ? '#1a0a0a' : D ? '#111' : '#f9f9f9',
+            borderColor: t.type === 'success' ? '#1a3a1a' : t.type === 'error' ? '#3a1a1a' : D ? '#222' : '#e8e8e8',
+            color: t.type === 'success' ? '#4ade80' : t.type === 'error' ? '#f87171' : D ? '#888' : '#666',
+          }}>
             <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : <Spinner />}</span>
             <span>{t.message}</span>
-            <button onClick={() => removeToast(t.id)} className="ml-2 text-xs opacity-40 hover:opacity-100">✕</button>
+            <button onClick={() => removeToast(t.id)} style={{ marginLeft:8, fontSize:11, opacity:.4, background:'none', border:'none', cursor:'pointer', color:'inherit' }}>✕</button>
           </div>
         ))}
       </div>
 
       {/* QR MODAL */}
       {showQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.85)'}}>
-          <div className="rounded-2xl p-6 border w-80" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-            <div className="flex justify-between items-center mb-4">
-              <span className="font-bold text-sm text-white">Your Wallet Address</span>
-              <button onClick={() => setShowQR(false)} style={{color:'#555'}}>✕</button>
+        <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.85)' }}>
+          <div style={{ borderRadius:20, padding:24, border:`1px solid ${border}`, width:300, background:card }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <span style={{ fontWeight:700, fontSize:13, color:text }}>Your Wallet Address</span>
+              <button onClick={() => setShowQR(false)} style={{ color:muted, background:'none', border:'none', cursor:'pointer', fontSize:16 }}>✕</button>
             </div>
-            <div className="bg-white p-6 rounded-xl mb-4 flex flex-col items-center justify-center gap-3">
-              <div className="grid grid-cols-8 gap-0.5">
-                {Array.from({length: 64}).map((_, i) => (
-                  <div key={i} style={{
-                    width: 8, height: 8,
-                    background: Math.random() > 0.5 ? '#000' : '#fff',
-                    borderRadius: 1,
-                  }} />
+            <div style={{ background:'#fff', padding:20, borderRadius:12, marginBottom:14, textAlign:'center' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:2, marginBottom:8 }}>
+                {Array.from({length:64}).map((_, i) => (
+                  <div key={i} style={{ width:'100%', paddingTop:'100%', background: [1,0,1,0,1,1,0,1,0,1,1,0,1,0,0,1,1,1,0,0,1,0,1,0,0,1,0,1,1,0,0,1,1,0,1,1,0,0,1,0,0,1,1,0,1,0,1,1,1,0,0,1,0,1,0,0,1,0,1,1,0,1,0,1][i] ? '#000' : '#fff', borderRadius:1 }} />
                 ))}
               </div>
-              <div className="text-xs text-gray-400 font-mono break-all text-center">{address}</div>
+              <div style={{ fontSize:9, color:'#666', fontFamily:'monospace', wordBreak:'break-all' }}>{address}</div>
             </div>
             <button onClick={() => { navigator.clipboard.writeText(address || ''); addToast('success', 'Address copied!'); setShowQR(false) }}
-              className="w-full py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
-              style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
+              style={{ width:'100%', padding:12, borderRadius:12, fontWeight:800, fontSize:13, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>
               Copy Address
             </button>
           </div>
@@ -464,94 +472,100 @@ export default function Home() {
       )}
 
       {/* NAVBAR */}
-      <nav className="border-b px-4 md:px-6 py-4 flex justify-between items-center" style={{borderColor:'#141414'}}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 border rounded-xl flex items-center justify-center" style={{background:'#111', borderColor:'#1e1e1e'}}>
-            <WavesLogo size={20} />
+      <nav style={{ borderBottom:`1px solid ${border}`, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', background:D?'#080808':'#fff' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:32, height:32, background: D?'#111':'#f5f5f5', border:`1px solid ${border}`, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <WavesLogo size={18} />
           </div>
           <div>
-            <div className="font-bold text-sm text-white">Arc Global Payouts</div>
-            <div className="text-xs font-bold tracking-widest" style={{color:'#c9a84c'}}>
-              ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span>
+            <div style={{ fontWeight:700, fontSize:13, color:text }}>Arc Global Payouts</div>
+            <div style={{ fontSize:8, color:'#c9a84c', fontWeight:700, letterSpacing:'.8px' }}>
+              ARC NETWORK <span style={{ color:muted }}>· by GoGo</span>
             </div>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex" style={{ display:'flex', alignItems:'center', gap:8 }}>
           <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 border rounded-full px-3 py-1" style={{background:'#111', borderColor:'#1e1e1e'}}>
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#c9a84c'}}></div>
-            <span className="text-xs" style={{color:'#666'}}>Arc Testnet</span>
+            style={{ display:'flex', alignItems:'center', gap:6, background: D?'#111':'#f5f5f5', border:`1px solid ${border}`, borderRadius:20, padding:'4px 10px', textDecoration:'none' }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'#c9a84c', animation:'pulse 2s infinite' }}></div>
+            <span style={{ fontSize:11, color:muted }}>Arc Testnet</span>
           </a>
-          <div className="border rounded-full px-3 py-1 text-xs" style={{background:'#111', borderColor:'#1e1e1e', color:'#c9a84c'}}>USDC</div>
-          <button onClick={() => setShowQR(true)} className="flex items-center gap-2 border rounded-full px-3 py-1 transition-colors hover:border-yellow-900"
-            style={{background:'#111', borderColor:'#1e1e1e'}}>
-            <div className="w-6 h-6 rounded-full" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)'}}></div>
-            <span className="text-xs" style={{color:'#666'}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
-            <span className="text-xs" style={{color:'#333'}}>▾</span>
+          <div style={{ background: D?'#1a1500':'#fef3e2', border:'1px solid #2a2500', borderRadius:20, padding:'4px 10px', fontSize:11, color:'#c9a84c', fontWeight:700 }}>USDC</div>
+          <button onClick={() => setShowQR(true)} style={{ display:'flex', alignItems:'center', gap:6, background: D?'#111':'#f5f5f5', border:`1px solid ${border}`, borderRadius:20, padding:'4px 10px', cursor:'pointer' }}>
+            <div style={{ width:22, height:22, borderRadius:'50%', background:'linear-gradient(135deg,#c9a84c,#a07830)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800, color:'#000' }}>G</div>
+            <span style={{ fontSize:11, color:muted }}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
+            <span style={{ fontSize:10, color:subtle }}>▾</span>
           </button>
-          <Link href="/history" className="text-xs transition-colors" style={{color:'#666'}}>History</Link>
-          <div className="relative">
+          <Link href="/history" style={{ fontSize:11, color:muted, textDecoration:'none' }}>History</Link>
+          <Link href="/game" style={{ fontSize:11, color:'#c9a84c', textDecoration:'none' }}>🎮 Game</Link>
+          <Link href="/ai" style={{ fontSize:11, color:'#60a5fa', textDecoration:'none' }}>🤖 AI</Link>
+          <div style={{ position:'relative' }}>
             <button onClick={() => setShowHelp(!showHelp)}
-              className="w-6 h-6 rounded-full border text-xs flex items-center justify-center"
-              style={{background:'#111', borderColor:'#222', color:'#666'}}>?</button>
+              style={{ width:22, height:22, borderRadius:'50%', background: D?'#111':'#f5f5f5', border:`1px solid ${border}`, fontSize:11, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>?</button>
             {showHelp && (
-              <div className="absolute right-0 top-8 w-64 border rounded-xl shadow-2xl z-50 p-3" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-                <div className="text-xs font-bold mb-3 px-1" style={{color:'#c9a84c'}}>🛠 Developer Tools</div>
+              <div style={{ position:'absolute', right:0, top:28, width:240, background: D?'#0e0e0e':'#fff', border:`1px solid ${border}`, borderRadius:14, zIndex:50, padding:12 }}>
+                <div style={{ fontSize:10, color:'#c9a84c', fontWeight:700, marginBottom:10, paddingLeft:4 }}>🛠 Developer Tools</div>
                 {[
-                  { href: 'https://faucet.circle.com', icon: '🚰', title: 'Test USDC Faucet', sub: 'faucet.circle.com' },
-                  { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Arc Testnet Setup', sub: 'thirdweb.com' },
-                  { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'testnet.arcscan.app' },
+                  { href:'https://faucet.circle.com', icon:'🚰', title:'Test USDC Faucet', sub:'faucet.circle.com' },
+                  { href:'https://thirdweb.com/arc-testnet', icon:'⚙️', title:'Arc Testnet Setup', sub:'thirdweb.com' },
+                  { href:'https://testnet.arcscan.app', icon:'🔍', title:'ArcScan Explorer', sub:'testnet.arcscan.app' },
                 ].map(item => (
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setShowHelp(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:opacity-80">
-                    <span className="text-sm">{item.icon}</span>
-                    <div><div className="text-sm font-medium text-white">{item.title}</div><div className="text-xs" style={{color:'#444'}}>{item.sub}</div></div>
+                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, textDecoration:'none' }}>
+                    <span style={{ fontSize:13 }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:500, color:text }}>{item.title}</div>
+                      <div style={{ fontSize:10, color:muted }}>{item.sub}</div>
+                    </div>
                   </a>
                 ))}
-                <div className="border-t mt-2 pt-2 px-1" style={{borderColor:'#141414'}}>
-                  <div className="text-xs" style={{color:'#333'}}>Arc Global Payouts v3.1 · by GoGo</div>
+                <div style={{ borderTop:`1px solid ${border}`, marginTop:8, paddingTop:8, paddingLeft:4 }}>
+                  <div style={{ fontSize:10, color:subtle }}>Arc Global Payouts v4.0 · by GoGo</div>
                 </div>
               </div>
             )}
           </div>
-          <button onClick={() => disconnect()} className="text-xs transition-colors hover:text-red-400" style={{color:'#444'}}>Disconnect</button>
+          <button onClick={() => setDarkMode(!D)}
+            style={{ padding:'4px 8px', background: D?'#111':'#f5f5f5', border:`1px solid ${border}`, borderRadius:8, fontSize:13, cursor:'pointer' }}>
+            {D ? '☀️' : '🌙'}
+          </button>
+          <button onClick={() => disconnect()} style={{ fontSize:11, color:'#666', cursor:'pointer', background:'none', border:'none' }}>Disconnect</button>
         </div>
-        <button className="md:hidden flex flex-col gap-1.5 p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} style={{background:'#888'}}></span>
-          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? 'opacity-0' : ''}`} style={{background:'#888'}}></span>
-          <span className={`block w-5 h-0.5 transition-all ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} style={{background:'#888'}}></span>
+        <button style={{ display:'flex', flexDirection:'column', gap:4, padding:8, background:'none', border:'none', cursor:'pointer' }}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <span style={{ display:'block', width:18, height:2, background:muted, transition:'all .3s', transform: mobileMenuOpen ? 'rotate(45deg) translate(4px,4px)' : 'none' }}></span>
+          <span style={{ display:'block', width:18, height:2, background:muted, opacity: mobileMenuOpen ? 0 : 1 }}></span>
+          <span style={{ display:'block', width:18, height:2, background:muted, transition:'all .3s', transform: mobileMenuOpen ? 'rotate(-45deg) translate(4px,-4px)' : 'none' }}></span>
         </button>
       </nav>
 
-      {/* MOBILE MENU */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b px-4 py-4 flex flex-col gap-3" style={{background:'#0a0a0a', borderColor:'#141414'}}>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 rounded-full" style={{background:'#c9a84c'}}></div>
-            <span style={{color:'#888'}}>Arc Testnet</span>
-            <span className="ml-auto text-xs font-mono" style={{color:'#444'}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
+        <div style={{ borderBottom:`1px solid ${border}`, padding:'12px 16px', display:'flex', flexDirection:'column', gap:10, background: D?'#0a0a0a':'#fafafa' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontSize:12, color:muted }}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
+            <button onClick={() => setDarkMode(!D)} style={{ fontSize:13, background:'none', border:'none', cursor:'pointer' }}>{D?'☀️':'🌙'}</button>
           </div>
-          <button onClick={() => { setShowQR(true); setMobileMenuOpen(false) }} className="text-sm py-1 text-left" style={{color:'#888'}}>📱 Show QR Code</button>
           {[
-            { href: 'https://faucet.circle.com', label: '🚰 Get Test USDC' },
-            { href: 'https://thirdweb.com/arc-testnet', label: '⚙️ Network Setup' },
-            { href: 'https://testnet.arcscan.app', label: '🔍 ArcScan Explorer' },
-          ].map(item => (
-            <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className="text-sm py-1" style={{color:'#666'}}>{item.label}</a>
-          ))}
-          <Link href="/history" className="text-sm py-1" style={{color:'#666'}}>📋 Transaction History</Link>
-          <button onClick={() => disconnect()} className="text-sm py-1 text-left text-red-500">Disconnect Wallet</button>
+            { href:'https://faucet.circle.com', label:'🚰 Get Test USDC' },
+            { href:'https://thirdweb.com/arc-testnet', label:'⚙️ Network Setup' },
+            { href:'https://testnet.arcscan.app', label:'🔍 ArcScan' },
+          ].map(item => <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:muted, textDecoration:'none' }}>{item.label}</a>)}
+          <Link href="/history" style={{ fontSize:12, color:muted, textDecoration:'none' }}>📋 History</Link>
+          <Link href="/game" style={{ fontSize:12, color:'#c9a84c', textDecoration:'none' }}>🎮 Flappy USDC</Link>
+          <Link href="/ai" style={{ fontSize:12, color:'#60a5fa', textDecoration:'none' }}>🤖 AI Assistant</Link>
+          <button onClick={() => { setShowQR(true); setMobileMenuOpen(false) }} style={{ fontSize:12, color:muted, background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>📱 Show QR Code</button>
+          <button onClick={() => disconnect()} style={{ fontSize:12, color:'#f87171', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>Disconnect</button>
         </div>
       )}
 
       {/* TABS */}
-      <div className="border-b px-4 md:px-6 overflow-x-auto" style={{borderColor:'#111'}}>
-        <div className="flex gap-0 min-w-max">
+      <div style={{ borderBottom:`1px solid ${border}`, padding:'0 16px', overflowX:'auto', background: D?'#080808':'#fff' }}>
+        <div style={{ display:'flex', minWidth:'max-content' }}>
           {TAB_CONFIG.map(t => (
             <button key={t.id} onClick={() => setTab(t.id as Tab)}
-              className="py-3 px-4 text-sm font-medium border-b-2 transition-all flex items-center gap-2 whitespace-nowrap"
               style={{
-                color: tab === t.id ? '#c9a84c' : '#444',
+                padding:'10px 14px', fontSize:12, fontWeight:500, borderBottom:'2px solid', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap', background:'none', cursor:'pointer', transition:'all .2s',
+                color: tab === t.id ? '#c9a84c' : muted,
                 borderBottomColor: tab === t.id ? '#c9a84c' : 'transparent',
               }}>
               <TabIcon short={t.short} active={tab === t.id} />
@@ -562,464 +576,406 @@ export default function Home() {
       </div>
 
       {/* CONTENT */}
-      <div className="flex flex-1 flex-col md:flex-row" onClick={() => showHelp && setShowHelp(false)}>
+      <div style={{ display:'flex', flex:1, flexDirection:'column' }} onClick={() => showHelp && setShowHelp(false)}>
+        <div style={{ display:'flex', flex:1 }}>
 
-        {showSidePanel && (
-          <div className="flex-1 flex items-start justify-center p-4 md:p-8">
-            <div className="w-full max-w-md border rounded-2xl p-5 md:p-6" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
+          {showSidePanel && (
+            <div style={{ flex:1, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'24px 16px' }}>
+              <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:22 }}>
 
-              {/* SEND */}
-              {tab === 'send' && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold tracking-wider" style={{color:'#444'}}>YOU PAY</label>
-                    <span className="text-xs" style={{color:'#444'}}>Balance: ${balanceFormatted || '—'}</span>
-                  </div>
-                  <div className="rounded-xl p-4 border transition-all" style={{background:'#080808', borderColor:'#181818'}}>
-                    <div className="flex items-center gap-3">
-                      <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0"
-                        className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
-                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
-                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
-                      </div>
+                {tab === 'send' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted }}>YOU PAY</label>
+                      <span style={{ fontSize:10, color:muted }}>Balance: ${balanceFormatted || '—'}</span>
                     </div>
-                    <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
+                    <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0"
+                          style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }} />
+                        <div style={{ background: D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}></div>
+                          <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:10, color:subtle, marginTop:5 }}>Arc Testnet</div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'center' }}>
+                      <div style={{ width:28, height:28, background: D?'#0e0e0e':field, border:`1px solid ${border}`, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:subtle }}>↓</div>
+                    </div>
+                    <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted }}>TO</label>
+                    <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                      <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="Wallet address or ENS"
+                        style={{ fontSize:13, background:'transparent', border:'none', color: singleAddress ? text : muted, outline:'none', width:'100%' }} />
+                      <div style={{ fontSize:10, color:subtle, marginTop:4 }}>Arc Testnet</div>
+                    </div>
+                    {favorites.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, marginBottom:6 }}>FAVORITES</div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                          {favorites.map((f, i) => (
+                            <button key={i} onClick={() => setSingleAddress(f.address)}
+                              style={{ fontSize:10, padding:'3px 8px', background: D?'#141414':field, border:`1px solid ${border}`, borderRadius:8, color:muted, cursor:'pointer' }}>
+                              ⭐ {f.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {singleAddress && !showFavInput && (
+                      <button onClick={() => setShowFavInput(true)} style={{ fontSize:10, color:subtle, background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>+ Save to favorites</button>
+                    )}
+                    {showFavInput && (
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input value={favName} onChange={e => setFavName(e.target.value)} placeholder="Label (e.g. Alice)"
+                          style={{ flex:1, fontSize:11, padding:'6px 10px', border:`1px solid ${border}`, borderRadius:8, background: D?'#141414':field, color:text, outline:'none' }} />
+                        <button onClick={addFavorite} style={{ fontSize:11, padding:'6px 12px', borderRadius:8, fontWeight:800, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>Save</button>
+                        <button onClick={() => setShowFavInput(false)} style={{ fontSize:11, color:muted, background:'none', border:'none', cursor:'pointer' }}>✕</button>
+                      </div>
+                    )}
+                    {singleAmount && (
+                      <div style={{ background:field, border:`1px solid ${border}`, borderRadius:12, padding:'10px 12px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}><span style={{ color:muted }}>Network fee</span><span style={{ color:subtle }}>~0.009 USDC</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}><span style={{ color:muted }}>Rate</span><span style={{ color:subtle }}>1 USDC = 1 USDC</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, borderTop:`1px solid ${border}`, paddingTop:6, marginTop:4 }}>
+                          <span style={{ color:text }}>Total sent</span><span style={{ color:'#c9a84c' }}>{singleAmount} USDC</span>
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={sendSingle} disabled={paying}
+                      style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, letterSpacing:'.3px', border:'none', cursor: paying?'default':'pointer', background: paying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color: paying?D?'#666':'#999':'#000' }}>
+                      {paying ? <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner />SENDING...</span> : 'CONFIRM TRANSFER'}
+                    </button>
+                    {txResult && <TxBox result={txResult} amount={singleAmount} token="USDC" />}
+                    <div style={{ textAlign:'center', fontSize:10, color: D?'#222':'#ccc' }}>Arc Testnet · sub-second finality · Powered by Arc App Kit</div>
                   </div>
-                  <div className="flex justify-center">
-                    <div className="w-8 h-8 border rounded-lg flex items-center justify-center text-sm" style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#333'}}>↓</div>
+                )}
+
+                {tab === 'nft' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    <h2 style={{ fontWeight:700, fontSize:16, color:text }}>NFT Receipt Image</h2>
+                    <p style={{ fontSize:12, color:muted }}>This image will be minted as an NFT receipt after each payment.</p>
+                    <div style={{ border:`2px dashed ${border}`, borderRadius:14, padding:28, textAlign:'center' }}>
+                      {nftImagePreview ? <img src={nftImagePreview} alt="NFT" style={{ width:120, height:120, borderRadius:12, objectFit:'cover', margin:'0 auto 10px', display:'block' }} /> : <div style={{ fontSize:36, marginBottom:10 }}>🎨</div>}
+                      <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage}
+                        style={{ padding:'8px 16px', borderRadius:8, fontSize:12, fontWeight:700, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>
+                        {uploadingImage ? <span style={{ display:'flex', alignItems:'center', gap:6 }}><Spinner />Uploading...</span> : nftImageUrl ? '✅ Image Uploaded' : 'Select Image'}
+                      </button>
+                      <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} style={{ display:'none' }} />
+                    </div>
+                    {nftImageUrl && <div style={{ background:'#0a1a0a', border:'1px solid #1a3a1a', borderRadius:10, padding:10, fontSize:12, color:'#4ade80' }}>✅ Uploaded to IPFS — payments will include this NFT receipt</div>}
                   </div>
-                  <label className="text-xs font-bold tracking-wider block" style={{color:'#444'}}>TO</label>
-                  <div className="rounded-xl p-4 border transition-all" style={{background:'#080808', borderColor:'#181818'}}>
-                    <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="Wallet address or ENS"
-                      className="bg-transparent text-sm outline-none w-full" style={{color:'#888'}} />
-                    <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
-                  </div>
-                  {favorites.length > 0 && (
+                )}
+
+                {tab === 'bridge' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                     <div>
-                      <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>FAVORITES</div>
-                      <div className="flex flex-wrap gap-2">
-                        {favorites.map((f, i) => (
-                          <button key={i} onClick={() => setSingleAddress(f.address)}
-                            className="text-xs px-2 py-1 border rounded-lg hover:border-yellow-900 transition-colors"
-                            style={{background:'#141414', borderColor:'#222', color:'#888'}}>
-                            ⭐ {f.name}
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>FROM</label>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+                        {CHAINS.filter(c => c.id !== bridgeTo).map(chain => (
+                          <button key={chain.id} onClick={() => setBridgeFrom(chain.id)}
+                            style={{ padding:'7px 4px', borderRadius:10, fontSize:10, fontWeight:600, border:'1px solid', cursor:'pointer', transition:'all .15s',
+                              borderColor: bridgeFrom === chain.id ? '#c9a84c' : border,
+                              color: bridgeFrom === chain.id ? '#c9a84c' : muted,
+                              background: bridgeFrom === chain.id ? '#1a1500' : field,
+                            }}>
+                            <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', marginRight:4, background: chain.dot.includes('blue')?'#60a5fa':chain.dot.includes('cyan')?'#22d3ee':chain.dot.includes('red')?'#f87171':chain.dot.includes('indigo')?'#818cf8':'#4ade80' }}></span>
+                            {chain.label}
                           </button>
                         ))}
                       </div>
                     </div>
-                  )}
-                  {singleAddress && !showFavInput && (
-                    <button onClick={() => setShowFavInput(true)} className="text-xs transition-colors hover:opacity-80" style={{color:'#444'}}>
-                      + Save to favorites
+                    <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0"
+                          style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }} />
+                        <div style={{ background: D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}></div>
+                          <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:10, color:subtle, marginTop:4 }}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'center' }}>
+                      <button onClick={flipBridge} style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>TO</label>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+                        {CHAINS.filter(c => c.id !== bridgeFrom).map(chain => (
+                          <button key={chain.id} onClick={() => setBridgeTo(chain.id)}
+                            style={{ padding:'7px 4px', borderRadius:10, fontSize:10, fontWeight:600, border:'1px solid', cursor:'pointer', transition:'all .15s',
+                              borderColor: bridgeTo === chain.id ? '#c9a84c' : border,
+                              color: bridgeTo === chain.id ? '#c9a84c' : muted,
+                              background: bridgeTo === chain.id ? '#1a1500' : field,
+                            }}>
+                            <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', marginRight:4, background: chain.dot.includes('blue')?'#60a5fa':chain.dot.includes('cyan')?'#22d3ee':chain.dot.includes('red')?'#f87171':chain.dot.includes('indigo')?'#818cf8':'#4ade80' }}></span>
+                            {chain.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <span style={{ fontSize:32, fontWeight:300, flex:1, color:muted, letterSpacing:'-1px' }}>{bridgeAmount || '0'}</span>
+                        <div style={{ background: D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}></div>
+                          <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize:10, color:subtle, marginTop:4 }}>{CHAINS.find(c => c.id === bridgeTo)?.label}</div>
+                    </div>
+                    {bridgeAmount && (
+                      <div style={{ background:field, border:`1px solid ${border}`, borderRadius:12, padding:'10px 12px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>From</span><span style={{ color:subtle }}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>To</span><span style={{ color:subtle }}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>Bridge fee</span><span style={{ color:subtle }}>~0.01 USDC</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, borderTop:`1px solid ${border}`, paddingTop:6, marginTop:4 }}>
+                          <span style={{ color:text }}>You receive</span><span style={{ color:'#c9a84c' }}>{bridgeAmount} USDC</span>
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={sendBridge} disabled={bridgePaying}
+                      style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor: bridgePaying?'default':'pointer', background: bridgePaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color: bridgePaying?D?'#666':'#999':'#000' }}>
+                      {bridgePaying ? <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner />BRIDGING...</span> : 'CONFIRM BRIDGE'}
                     </button>
-                  )}
-                  {showFavInput && (
-                    <div className="flex gap-2">
-                      <input value={favName} onChange={e => setFavName(e.target.value)} placeholder="Label (e.g. Alice)"
-                        className="flex-1 text-xs px-3 py-2 border rounded-lg outline-none" style={{background:'#141414', borderColor:'#222', color:'#fff'}} />
-                      <button onClick={addFavorite} className="text-xs px-3 py-2 rounded-lg font-bold" style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>Save</button>
-                      <button onClick={() => setShowFavInput(false)} className="text-xs" style={{color:'#444'}}>✕</button>
-                    </div>
-                  )}
-                  {singleAmount && (
-                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Network fee</span><span style={{color:'#666'}}>~0.009 USDC</span></div>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Rate</span><span style={{color:'#666'}}>1 USDC = 1 USDC</span></div>
-                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
-                        <span className="text-white">Total sent</span><span style={{color:'#c9a84c'}}>{singleAmount} USDC</span>
+                    {bridgeResult && <TxBox result={bridgeResult} amount={bridgeAmount} token="USDC" />}
+                  </div>
+                )}
+
+                {tab === 'swap' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    <div>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU PAY</label>
+                      <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <input type="number" value={swapAmountIn} onChange={e => setSwapAmountIn(e.target.value)} placeholder="0"
+                            style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }} />
+                          <select value={swapTokenIn} onChange={e => setSwapTokenIn(e.target.value)}
+                            style={{ background: D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
+                            {TOKENS.filter(t => t !== swapTokenOut).map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ fontSize:10, color:subtle, marginTop:4 }}>Arc Testnet</div>
                       </div>
                     </div>
-                  )}
-                  <button onClick={sendSingle} disabled={paying}
-                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
-                    style={{background: paying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                    {paying ? <span className="flex items-center justify-center gap-2"><Spinner />SENDING...</span> : 'CONFIRM TRANSFER'}
-                  </button>
-                  {txResult && <TxBox result={txResult} amount={singleAmount} token="USDC" />}
-                  <div className="text-center text-xs" style={{color:'#222'}}>Arc Testnet · sub-second finality · Powered by Arc App Kit</div>
-                </div>
-              )}
-
-              {/* NFT */}
-              {tab === 'nft' && (
-                <div className="space-y-4">
-                  <h2 className="font-bold text-lg text-white">NFT Receipt Image</h2>
-                  <p className="text-sm" style={{color:'#555'}}>This image will be minted as an NFT receipt after each payment.</p>
-                  <div className="border-2 border-dashed rounded-xl p-8 text-center hover:border-yellow-900 transition-colors" style={{borderColor:'#1a1a1a'}}>
-                    {nftImagePreview
-                      ? <img src={nftImagePreview} alt="NFT" className="w-32 h-32 rounded-xl object-cover mx-auto mb-3" />
-                      : <div className="text-4xl mb-3">🎨</div>}
-                    <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage}
-                      className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
-                      style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                      {uploadingImage ? <span className="flex items-center gap-2"><Spinner />Uploading...</span> : nftImageUrl ? '✅ Image Uploaded' : 'Select Image'}
+                    <div style={{ display:'flex', justifyContent:'center' }}>
+                      <button onClick={flipSwap} style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU RECEIVE</label>
+                      <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <span style={{ fontSize:32, fontWeight:300, flex:1, color:muted, letterSpacing:'-1px' }}>{swapAmountOut}</span>
+                          <select value={swapTokenOut} onChange={e => setSwapTokenOut(e.target.value)}
+                            style={{ background: D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
+                            {TOKENS.filter(t => t !== swapTokenIn).map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ fontSize:10, color:subtle, marginTop:4 }}>Arc Testnet</div>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>SLIPPAGE</label>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                        {['0.5','1','3'].map(s => (
+                          <button key={s} onClick={() => setSwapSlippage(s)}
+                            style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:700, border:'1px solid', cursor:'pointer',
+                              borderColor: swapSlippage === s ? '#c9a84c' : border,
+                              color: swapSlippage === s ? '#c9a84c' : muted,
+                              background: swapSlippage === s ? '#1a1500' : field,
+                            }}>{s}%</button>
+                        ))}
+                        <input type="number" placeholder="Custom" value={['0.5','1','3'].includes(swapSlippage) ? '' : swapSlippage}
+                          onChange={e => setSwapSlippage(e.target.value)}
+                          style={{ width:72, border:`1px solid ${border}`, borderRadius:8, padding:'5px 8px', fontSize:11, background:field, color:text, outline:'none' }} />
+                        {priceImpactHigh && <span style={{ fontSize:11, fontWeight:700, color:'#f87171' }}>⚠ High impact</span>}
+                      </div>
+                    </div>
+                    {swapAmountIn && (
+                      <div style={{ background:field, border:`1px solid ${border}`, borderRadius:12, padding:'10px 12px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>Rate</span><span style={{ color:subtle }}>1 {swapTokenIn} = {(RATES[swapTokenIn]?.[swapTokenOut]||1).toFixed(4)} {swapTokenOut}</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>Slippage</span><span style={{ color:subtle }}>{swapSlippage}%</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}><span style={{ color:muted }}>Price impact</span><span style={{ color: priceImpactHigh?'#f87171':'#4ade80' }}>{priceImpactHigh?'> 2%':'< 0.1%'}</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700, borderTop:`1px solid ${border}`, paddingTop:6, marginTop:4 }}>
+                          <span style={{ color:text }}>Min. received</span>
+                          <span style={{ color:'#c9a84c' }}>{(parseFloat(swapAmountOut)*(1-parseFloat(swapSlippage)/100)).toFixed(4)} {swapTokenOut}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ background:field, border:`1px solid ${border}`, borderRadius:12, padding:'10px 12px' }}>
+                      <div style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, marginBottom:8 }}>ROUTE</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                        <span style={{ background: D?'#141414':'#e8e8e8', border:`1px solid ${border}`, borderRadius:6, padding:'3px 8px', fontSize:11, fontWeight:700, color:'#c9a84c' }}>{swapTokenIn}</span>
+                        <span style={{ color:subtle }}>→</span>
+                        <span style={{ background:'#0a1a0a', border:'1px solid #1a3a1a', borderRadius:6, padding:'3px 8px', fontSize:11, fontWeight:700, color:'#4ade80' }}>Arc Pool</span>
+                        <span style={{ color:subtle }}>→</span>
+                        <span style={{ background: D?'#141414':'#e8e8e8', border:`1px solid ${border}`, borderRadius:6, padding:'3px 8px', fontSize:11, fontWeight:700, color:'#c9a84c' }}>{swapTokenOut}</span>
+                      </div>
+                      <div style={{ fontSize:10, color:subtle, marginTop:6 }}>Best route · Arc DEX · 0.3% fee</div>
+                    </div>
+                    <button onClick={sendSwap} disabled={swapPaying}
+                      style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor: swapPaying?'default':'pointer', background: swapPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color: swapPaying?D?'#666':'#999':'#000' }}>
+                      {swapPaying ? <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner />SWAPPING...</span> : 'CONFIRM SWAP'}
                     </button>
-                    <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} className="hidden" />
+                    {swapResult && <TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn} />}
                   </div>
-                  {nftImageUrl && (
-                    <div className="border rounded-lg p-3 text-sm" style={{background:'#0a1a0a', borderColor:'#1a3a1a', color:'#4ade80'}}>
-                      ✅ Uploaded to IPFS — payments will include this NFT receipt
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* BRIDGE */}
-              {tab === 'bridge' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>FROM</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {CHAINS.filter(c => c.id !== bridgeTo).map(chain => (
-                        <button key={chain.id} onClick={() => setBridgeFrom(chain.id)}
-                          className="py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95"
-                          style={{
-                            borderColor: bridgeFrom === chain.id ? '#c9a84c' : '#1a1a1a',
-                            color: bridgeFrom === chain.id ? '#c9a84c' : '#444',
-                            background: bridgeFrom === chain.id ? '#1a1500' : '#080808',
-                          }}>
-                          <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
-                          {chain.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#181818'}}>
-                    <div className="flex items-center gap-3">
-                      <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0"
-                        className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
-                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
-                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeFrom)?.dot}`}></div>
-                      <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-center">
-                    <button onClick={flipBridge} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
-                      style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>TO</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {CHAINS.filter(c => c.id !== bridgeFrom).map(chain => (
-                        <button key={chain.id} onClick={() => setBridgeTo(chain.id)}
-                          className="py-2 px-2 rounded-xl text-xs font-medium border transition-all active:scale-95"
-                          style={{
-                            borderColor: bridgeTo === chain.id ? '#c9a84c' : '#1a1a1a',
-                            color: bridgeTo === chain.id ? '#c9a84c' : '#444',
-                            background: bridgeTo === chain.id ? '#1a1500' : '#080808',
-                          }}>
-                          <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
-                          {chain.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-4xl font-light flex-1" style={{letterSpacing:'-1px', color:'#444'}}>{bridgeAmount || '0'}</span>
-                      <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{background:'#141414', borderColor:'#222'}}>
-                        <div className="w-2 h-2 rounded-full" style={{background:'#6366f1'}}></div>
-                        <span className="text-sm font-bold" style={{color:'#ddd'}}>USDC</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeTo)?.dot}`}></div>
-                      <span className="text-xs" style={{color:'#333'}}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span>
-                    </div>
-                  </div>
-                  {bridgeAmount && (
-                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>From</span><span style={{color:'#666'}}>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>To</span><span style={{color:'#666'}}>{CHAINS.find(c => c.id === bridgeTo)?.label}</span></div>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Bridge fee</span><span style={{color:'#666'}}>~0.01 USDC</span></div>
-                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
-                        <span className="text-white">You receive</span><span style={{color:'#c9a84c'}}>{bridgeAmount} USDC</span>
-                      </div>
-                    </div>
-                  )}
-                  <button onClick={sendBridge} disabled={bridgePaying}
-                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
-                    style={{background: bridgePaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                    {bridgePaying ? <span className="flex items-center justify-center gap-2"><Spinner />BRIDGING...</span> : 'CONFIRM BRIDGE'}
-                  </button>
-                  {bridgeResult && <TxBox result={bridgeResult} amount={bridgeAmount} token="USDC" />}
-                </div>
-              )}
-
-              {/* SWAP */}
-              {tab === 'swap' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU PAY</label>
-                    <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#181818'}}>
-                      <div className="flex items-center gap-3">
-                        <input type="number" value={swapAmountIn} onChange={e => setSwapAmountIn(e.target.value)} placeholder="0"
-                          className="bg-transparent text-4xl font-light flex-1 outline-none text-white" style={{letterSpacing:'-1px'}} />
-                        <select value={swapTokenIn} onChange={e => setSwapTokenIn(e.target.value)}
-                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
-                          style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
-                          {TOKENS.filter(t => t !== swapTokenOut).map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
-                    </div>
-                  </div>
-                  <div className="flex justify-center">
-                    <button onClick={flipSwap} className="w-10 h-10 border rounded-full flex items-center justify-center text-lg transition-all active:scale-95 hover:border-yellow-900"
-                      style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#444'}}>⇅</button>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>YOU RECEIVE</label>
-                    <div className="rounded-xl p-4 border" style={{background:'#080808', borderColor:'#141414'}}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-4xl font-light flex-1" style={{letterSpacing:'-1px', color:'#444'}}>{swapAmountOut}</span>
-                        <select value={swapTokenOut} onChange={e => setSwapTokenOut(e.target.value)}
-                          className="border rounded-full px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
-                          style={{background:'#141414', borderColor:'#222', color:'#ddd'}}>
-                          {TOKENS.filter(t => t !== swapTokenIn).map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div className="text-xs mt-2" style={{color:'#333'}}>Arc Testnet</div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold tracking-wider mb-2 block" style={{color:'#444'}}>SLIPPAGE</label>
-                    <div className="flex gap-2 items-center flex-wrap">
-                      {['0.5', '1', '3'].map(s => (
-                        <button key={s} onClick={() => setSwapSlippage(s)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95"
-                          style={{
-                            borderColor: swapSlippage === s ? '#c9a84c' : '#1a1a1a',
-                            color: swapSlippage === s ? '#c9a84c' : '#444',
-                            background: swapSlippage === s ? '#1a1500' : '#080808',
-                          }}>
-                          {s}%
-                        </button>
-                      ))}
-                      <input type="number" placeholder="Custom"
-                        value={['0.5','1','3'].includes(swapSlippage) ? '' : swapSlippage}
-                        onChange={e => setSwapSlippage(e.target.value)}
-                        className="w-20 border rounded-lg px-2 py-1.5 text-xs outline-none"
-                        style={{background:'#080808', borderColor:'#1a1a1a', color:'#888'}} />
-                      {priceImpactHigh && <span className="text-xs font-bold text-red-400">⚠ High impact</span>}
-                    </div>
-                  </div>
-                  {swapAmountIn && (
-                    <div className="border rounded-xl p-3 space-y-2 text-sm" style={{background:'#080808', borderColor:'#111'}}>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Rate</span><span style={{color:'#666'}}>1 {swapTokenIn} = {(RATES[swapTokenIn]?.[swapTokenOut] || 1).toFixed(4)} {swapTokenOut}</span></div>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Price impact</span><span className={priceImpactHigh ? 'text-red-400' : 'text-green-400'}>{priceImpactHigh ? '> 2%' : '< 0.1%'}</span></div>
-                      <div className="flex justify-between"><span style={{color:'#444'}}>Slippage</span><span style={{color:'#666'}}>{swapSlippage}%</span></div>
-                      <div className="flex justify-between font-bold border-t pt-2" style={{borderColor:'#141414'}}>
-                        <span className="text-white">Min. received</span>
-                        <span style={{color:'#c9a84c'}}>{(parseFloat(swapAmountOut) * (1 - parseFloat(swapSlippage)/100)).toFixed(4)} {swapTokenOut}</span>
-                      </div>
-                    </div>
-                  )}
-                  <div className="border rounded-xl p-3" style={{background:'#080808', borderColor:'#111'}}>
-                    <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>ROUTE</div>
-                    <div className="flex items-center gap-2 text-xs flex-wrap">
-                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#141414', borderColor:'#1a1a1a', color:'#c9a84c'}}>{swapTokenIn}</span>
-                      <span style={{color:'#333'}}>→</span>
-                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#0a1a0a', borderColor:'#1a3a1a', color:'#4ade80'}}>Arc Pool</span>
-                      <span style={{color:'#333'}}>→</span>
-                      <span className="border rounded-lg px-2 py-1 font-bold" style={{background:'#141414', borderColor:'#1a1a1a', color:'#c9a84c'}}>{swapTokenOut}</span>
-                    </div>
-                    <div className="text-xs mt-2" style={{color:'#333'}}>Best route · Arc DEX · 0.3% fee</div>
-                  </div>
-                  <button onClick={sendSwap} disabled={swapPaying}
-                    className="w-full py-4 rounded-xl font-black text-sm tracking-wider active:scale-95 disabled:opacity-50 transition-all"
-                    style={{background: swapPaying ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                    {swapPaying ? <span className="flex items-center justify-center gap-2"><Spinner />SWAPPING...</span> : 'CONFIRM SWAP'}
-                  </button>
-                  {swapResult && <TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn} />}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* BATCH */}
-        {tab === 'batch' && (
-          <div className="flex-1 p-4 md:p-6">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-              <h2 className="text-xl font-bold text-white">Batch Payout</h2>
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={downloadTemplate} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900"
-                  style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>Template</button>
-                <button onClick={() => fileRef.current?.click()} className="px-3 py-2 border rounded-lg text-sm transition-all active:scale-95 hover:border-yellow-900"
-                  style={{background:'#0e0e0e', borderColor:'#1a1a1a', color:'#888'}}>Import CSV</button>
-                <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
-                {pendingCount > 0 && (
-                  <button onClick={sendBatch} disabled={batchPaying}
-                    className="px-3 py-2 rounded-lg text-sm font-bold active:scale-95 disabled:opacity-50 transition-all"
-                    style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>
-                    {batchPaying ? <span className="flex items-center gap-2"><Spinner />Sending...</span> : `Send to ${pendingCount}`}
-                  </button>
                 )}
               </div>
             </div>
-            <div className="border rounded-xl p-4 mb-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name"
-                  className="border rounded-lg px-3 py-2 text-sm outline-none" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
-                <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..."
-                  className="border rounded-lg px-3 py-2 text-sm outline-none md:col-span-2" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
-                <div className="flex gap-2">
-                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number"
-                    className="border rounded-lg px-3 py-2 text-sm outline-none flex-1" style={{background:'#080808', borderColor:'#1a1a1a', color:'#fff'}} />
-                  <button onClick={addRecipient} className="px-4 py-2 rounded-lg text-sm font-bold active:scale-95"
-                    style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>+</button>
-                </div>
-              </div>
-            </div>
-            <div className="border rounded-xl overflow-hidden overflow-x-auto" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              {recipients.length === 0 ? (
-                <div className="p-12 text-center">
-                  <div className="text-4xl mb-3">👥</div>
-                  <p style={{color:'#444'}}>No recipients yet</p>
-                  <p className="text-sm mt-1" style={{color:'#333'}}>Add manually or import CSV</p>
-                </div>
-              ) : (
-                <table className="w-full min-w-[600px]">
-                  <thead className="border-b" style={{borderColor:'#1a1a1a'}}>
-                    <tr>
-                      {['NAME','ADDRESS','AMOUNT','STATUS','NFT','TX'].map(h => (
-                        <th key={h} className="text-left p-4 text-xs font-bold tracking-wider" style={{color:'#444'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recipients.map(r => (
-                      <tr key={r.id} className="border-b transition-colors" style={{borderColor:'#141414'}}>
-                        <td className="p-4 text-sm font-medium text-white">{r.name}</td>
-                        <td className="p-4 text-sm font-mono" style={{color:'#555'}}>{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
-                        <td className="p-4 text-sm font-bold" style={{color:'#c9a84c'}}>{r.amount} USDC</td>
-                        <td className="p-4">
-                          <span className="px-2 py-1 rounded text-xs font-bold"
-                            style={r.status === 'paid' ? {background:'#0a1a0a', color:'#4ade80'} : {background:'#1a1500', color:'#c9a84c'}}>
-                            {r.status === 'paid' ? '✅ Paid' : '⏳ Pending'}
-                          </span>
-                        </td>
-                        <td className="p-4">{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{color:'#c9a84c'}}>View</a> : <span className="text-xs" style={{color:'#333'}}>—</span>}</td>
-                        <td className="p-4">{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{color:'#6366f1'}}>Explorer</a> : <span className="text-xs" style={{color:'#333'}}>—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* RIGHT PANEL */}
-        {showSidePanel && (
-          <div className="w-full md:w-72 border-t md:border-t-0 md:border-l p-4 md:p-5 flex flex-col gap-4" style={{borderColor:'#111'}}>
-            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="text-xs font-bold tracking-wider mb-2" style={{color:'#444'}}>USDC BALANCE</div>
-              {balanceLoading
-                ? <div className="space-y-2"><SkeletonBox h="h-8" w="w-24" /><SkeletonBox h="h-3" w="w-32" /></div>
-                : <>
-                    <div className="text-3xl font-light text-white" style={{letterSpacing:'-1px'}}>${balanceFormatted}</div>
-                    <div className="text-xs mt-1 font-bold" style={{color:'#c9a84c'}}>Arc Testnet · Live</div>
-                  </>
-              }
-            </div>
-            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>ANALYTICS</div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="rounded-lg p-2" style={{background:'#080808'}}>
-                  <div className="text-xs" style={{color:'#444'}}>Total sent</div>
-                  <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${totalPaid.toFixed(2)}</div>
-                </div>
-                <div className="rounded-lg p-2" style={{background:'#080808'}}>
-                  <div className="text-xs" style={{color:'#444'}}>Transactions</div>
-                  <div className="text-sm font-bold text-white">{transactions.length}</div>
+          {tab === 'batch' && (
+            <div style={{ flex:1, padding:'16px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+                <h2 style={{ fontSize:18, fontWeight:700, color:text }}>Batch Payout</h2>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  <button onClick={downloadTemplate} style={{ padding:'7px 12px', background:card, border:`1px solid ${border}`, borderRadius:8, fontSize:12, color:muted, cursor:'pointer' }}>Template</button>
+                  <button onClick={() => fileRef.current?.click()} style={{ padding:'7px 12px', background:card, border:`1px solid ${border}`, borderRadius:8, fontSize:12, color:muted, cursor:'pointer' }}>Import CSV</button>
+                  <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} style={{ display:'none' }} />
+                  {pendingCount > 0 && (
+                    <button onClick={sendBatch} disabled={batchPaying}
+                      style={{ padding:'7px 14px', borderRadius:8, fontSize:12, fontWeight:800, border:'none', cursor: batchPaying?'default':'pointer', background: batchPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color: batchPaying?D?'#666':'#999':'#000' }}>
+                      {batchPaying ? <span style={{ display:'flex', alignItems:'center', gap:6 }}><Spinner />Sending...</span> : `Send to ${pendingCount}`}
+                    </button>
+                  )}
                 </div>
               </div>
-              {transactions.length > 0 && (
-                <div>
-                  <div className="text-xs mb-2" style={{color:'#333'}}>Recent volume</div>
-                  <div className="flex items-end gap-1 h-10">
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:14, padding:14, marginBottom:12 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr auto', gap:8 }}>
+                  <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name" style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }} />
+                  <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..." style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }} />
+                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number" style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }} />
+                  <button onClick={addRecipient} style={{ padding:'8px 14px', borderRadius:8, fontSize:13, fontWeight:800, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>+</button>
+                </div>
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:14, overflow:'hidden', overflowX:'auto' }}>
+                {recipients.length === 0 ? (
+                  <div style={{ padding:48, textAlign:'center' }}>
+                    <div style={{ fontSize:36, marginBottom:10 }}>👥</div>
+                    <p style={{ color:muted }}>No recipients yet</p>
+                    <p style={{ fontSize:12, color:subtle, marginTop:4 }}>Add manually or import CSV</p>
+                  </div>
+                ) : (
+                  <table style={{ width:'100%', minWidth:600, borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom:`1px solid ${border}` }}>
+                        {['NAME','ADDRESS','AMOUNT','STATUS','NFT','TX'].map(h => (
+                          <th key={h} style={{ textAlign:'left', padding:'10px 14px', fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recipients.map(r => (
+                        <tr key={r.id} style={{ borderBottom:`1px solid ${border}` }}>
+                          <td style={{ padding:'12px 14px', fontSize:12, fontWeight:500, color:text }}>{r.name}</td>
+                          <td style={{ padding:'12px 14px', fontSize:11, color:muted, fontFamily:'monospace' }}>{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                          <td style={{ padding:'12px 14px', fontSize:12, fontWeight:700, color:'#c9a84c' }}>{r.amount} USDC</td>
+                          <td style={{ padding:'12px 14px' }}>
+                            <span style={{ padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:700, background: r.status==='paid'?'#0a1a0a':'#1a1500', color: r.status==='paid'?'#4ade80':'#c9a84c' }}>
+                              {r.status === 'paid' ? '✅ Paid' : '⏳ Pending'}
+                            </span>
+                          </td>
+                          <td style={{ padding:'12px 14px' }}>{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#a78bfa', textDecoration:'none' }}>View</a> : <span style={{ fontSize:11, color:subtle }}>—</span>}</td>
+                          <td style={{ padding:'12px 14px' }}>{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#6366f1', textDecoration:'none' }}>Explorer</a> : <span style={{ fontSize:11, color:subtle }}>—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showSidePanel && (
+            <div style={{ width:260, borderLeft:`1px solid ${border}`, padding:14, display:'flex', flexDirection:'column', gap:10, background: D?'#080808':'#fafafa' }}>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:12 }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:4 }}>USDC BALANCE</div>
+                {balanceLoading ? <SkeletonBox w="80px" h="28px" /> : (
+                  <>
+                    <div style={{ fontSize:24, fontWeight:300, color:text, letterSpacing:'-1px' }}>${balanceFormatted}</div>
+                    <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
+                  </>
+                )}
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:12 }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:4 }}>EURC BALANCE</div>
+                <div style={{ fontSize:24, fontWeight:300, color:'#facc15', letterSpacing:'-1px' }}>€0.00</div>
+                <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:12 }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>ANALYTICS</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:8 }}>
+                  <div style={{ background:field, borderRadius:8, padding:8 }}>
+                    <div style={{ fontSize:9, color:muted }}>Total sent</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'#c9a84c' }}>${totalPaid.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background:field, borderRadius:8, padding:8 }}>
+                    <div style={{ fontSize:9, color:muted }}>Transactions</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:text }}>{transactions.length}</div>
+                  </div>
+                </div>
+                {transactions.length > 0 && (
+                  <div style={{ display:'flex', alignItems:'flex-end', gap:2, height:32 }}>
                     {transactions.slice(-7).map((t, i) => {
-                      const maxAmt = Math.max(...transactions.slice(-7).map(x => parseFloat(x.amount || '0')))
-                      const h = maxAmt > 0 ? Math.max(4, (parseFloat(t.amount || '0') / maxAmt) * 36) : 4
-                      return <div key={i} style={{height: h, background: i === transactions.slice(-7).length - 1 ? '#c9a84c' : '#1a1500'}}
-                        className="flex-1 rounded-sm transition-colors cursor-pointer" title={`$${t.amount}`}></div>
+                      const maxAmt = Math.max(...transactions.slice(-7).map(x => parseFloat(x.amount||'0')))
+                      const h = maxAmt > 0 ? Math.max(4, (parseFloat(t.amount||'0')/maxAmt)*30) : 4
+                      return <div key={i} style={{ flex:1, height:h, background: i===transactions.slice(-7).length-1?'#c9a84c':'#1a1500', borderRadius:2 }} />
                     })}
                   </div>
+                )}
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:12 }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>TOOLS</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                  {[
+                    { href:'https://faucet.circle.com', icon:'🚰', title:'Get Test USDC', sub:'faucet.circle.com', gold:true },
+                    { href:'https://thirdweb.com/arc-testnet', icon:'⚙️', title:'Network Setup', sub:'Arc Testnet', gold:false },
+                    { href:'https://testnet.arcscan.app', icon:'🔍', title:'ArcScan Explorer', sub:'Track transactions', gold:false },
+                  ].map(item => (
+                    <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', border:`1px solid`, borderRadius:8, textDecoration:'none', background: item.gold?(D?'#1a1500':'#fef9ec'):(D?'#080808':'#f5f5f5'), borderColor: item.gold?'#2a2500':border }}>
+                      <span style={{ fontSize:12 }}>{item.icon}</span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:10, fontWeight:600, color: item.gold?'#c9a84c':text }}>{item.title}</div>
+                        <div style={{ fontSize:9, color:muted }}>{item.sub}</div>
+                      </div>
+                      <span style={{ fontSize:10, color:subtle }}>↗</span>
+                    </a>
+                  ))}
                 </div>
-              )}
-            </div>
-            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>HOLDINGS</div>
-              {balanceLoading
-                ? <div className="flex items-center gap-2"><SkeletonBox w="w-8" h="h-8" /><div className="flex-1 space-y-1"><SkeletonBox h="h-3" /><SkeletonBox h="h-3" w="w-16" /></div></div>
-                : <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={{background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000'}}>$</div>
-                      <div><div className="text-sm font-medium text-white">USDC</div><div className="text-xs" style={{color:'#444'}}>Arc Testnet</div></div>
-                    </div>
-                    <div className="text-sm font-bold" style={{color:'#c9a84c'}}>${balanceFormatted}</div>
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:12, flex:1 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px' }}>ACTIVITY</div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:subtle, textDecoration:'none' }}>ArcScan</a>
+                    <span style={{ color:subtle }}>·</span>
+                    <Link href="/history" style={{ fontSize:10, color:subtle, textDecoration:'none' }}>All txns</Link>
                   </div>
-              }
-            </div>
-            <div className="border rounded-xl p-4" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="text-xs font-bold tracking-wider mb-3" style={{color:'#444'}}>TOOLS</div>
-              <div className="flex flex-col gap-2">
-                {[
-                  { href: 'https://faucet.circle.com', icon: '🚰', title: 'Get Test USDC', sub: 'faucet.circle.com', gold: true },
-                  { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Network Setup', sub: 'Arc Testnet', gold: false },
-                  { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'Track transactions', gold: false },
-                ].map(item => (
-                  <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:border-yellow-900 transition-colors"
-                    style={{background: item.gold ? '#1a1500' : '#080808', borderColor: item.gold ? '#2a2500' : '#141414'}}>
-                    <span className="text-sm">{item.icon}</span>
-                    <div className="flex-1">
-                      <div className="text-xs font-medium" style={{color: item.gold ? '#c9a84c' : '#888'}}>{item.title}</div>
-                      <div className="text-xs" style={{color:'#333'}}>{item.sub}</div>
-                    </div>
-                    <span className="text-xs" style={{color:'#222'}}>↗</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="border rounded-xl p-4 flex-1" style={{background:'#0e0e0e', borderColor:'#1a1a1a'}}>
-              <div className="flex justify-between items-center mb-3">
-                <div className="text-xs font-bold tracking-wider" style={{color:'#444'}}>ACTIVITY</div>
-                <div className="flex gap-2 items-center">
-                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs" style={{color:'#333'}}>ArcScan</a>
-                  <span style={{color:'#222'}}>·</span>
-                  <Link href="/history" className="text-xs" style={{color:'#333'}}>All txns</Link>
                 </div>
-              </div>
-              {transactions.length === 0
-                ? <div className="text-center text-sm py-4" style={{color:'#333'}}>No transactions yet</div>
-                : <div className="space-y-3">
-                    {transactions.slice(0, 5).map(t => (
-                      <div key={t.id} className="flex items-center justify-between p-1 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs" style={{background:'#1a1500', color:'#c9a84c'}}>↗</div>
+                {transactions.length === 0 ? (
+                  <div style={{ textAlign:'center', fontSize:12, padding:'12px 0', color:subtle }}>No transactions yet</div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {transactions.slice(0,5).map(t => (
+                      <div key={t.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                          <div style={{ width:22, height:22, borderRadius:6, background:'#1a1500', color:'#c9a84c', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10 }}>↗</div>
                           <div>
-                            <div className="text-xs font-medium text-white">{t.name || 'Send USDC'}</div>
-                            <div className="text-xs" style={{color:'#333'}}>confirmed</div>
+                            <div style={{ fontSize:11, fontWeight:500, color:text }}>{t.name||'Send USDC'}</div>
+                            <div style={{ fontSize:10, color:muted }}>confirmed</div>
                           </div>
                         </div>
-                        <div className="text-sm font-bold" style={{color:'#c9a84c'}}>-{t.amount}</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#c9a84c' }}>-{t.amount}</div>
                       </div>
                     ))}
                   </div>
-              }
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
