@@ -5,16 +5,11 @@ import Link from 'next/link'
 import { useAccount, useConnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 
-const WALLET_MAP: Record<string, { address: string; name: string; bio?: string; avatar?: string }> = {
+const WALLET_MAP: Record<string, { address: string; name: string; bio?: string }> = {
   'gogo': {
     address: '0xB87B7e8a3dE8cD1a6F3d3f3D3F3d3f3D3f3D3f3D',
     name: 'GoGo',
     bio: 'Arc Global Payouts · Builder on Arc Network 🌐',
-  },
-  'worlldz': {
-    address: '0x1234567890123456789012345678901234567890',
-    name: 'WorlldZ',
-    bio: 'Arc Network enthusiast · DeFi builder',
   },
 }
 
@@ -57,8 +52,10 @@ export default function PayPage({ params }: { params: { username: string } }) {
       const txHash = (res as any)?.hash || (res as any)?.txHash || ''
       const stored = localStorage.getItem('arc_transactions')
       const existing = stored ? JSON.parse(stored) : []
-      const tx = { id: Math.random().toString(36).slice(2), name: `Payment to @${username}`, address: profile.address, amount, txHash, timestamp: new Date().toISOString() }
-      localStorage.setItem('arc_transactions', JSON.stringify([tx, ...existing]))
+      localStorage.setItem('arc_transactions', JSON.stringify([
+        { id: Math.random().toString(36).slice(2), name: `Payment to @${username}`, address: profile.address, amount, txHash, timestamp: new Date().toISOString() },
+        ...existing
+      ]))
       setTxResult({ txHash })
       setAmount('')
       setMessage('')
@@ -79,14 +76,9 @@ export default function PayPage({ params }: { params: { username: string } }) {
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
   }
 
-  const shareSuccess = () => {
-    const text = `Just sent ${amount} USDC to @${username} on Arc Network! ⚡\n\narc-payouts.vercel.app/pay/${username}\n\n#ArcNetwork #USDC #DeFi`
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
-  }
-
   if (!profile) {
     return (
-      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#080808', fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' }}>
+      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#080808', fontFamily:'-apple-system,sans-serif' }}>
         <style>{`@keyframes sweep{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
         <div style={{ position:'relative', width:60, height:60, marginBottom:20 }}>
           <div style={{ position:'absolute', inset:-1, borderRadius:14, background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.5 }} />
@@ -104,10 +96,9 @@ export default function PayPage({ params }: { params: { username: string } }) {
   }
 
   return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:'#080808', color:'#fff', fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' }}>
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:'#080808', color:'#fff', fontFamily:'-apple-system,sans-serif' }}>
       <style>{`@keyframes sweep{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
 
-      {/* NAV */}
       <nav style={{ borderBottom:'1px solid #111', padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#080808' }}>
         <Link href="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
           <div style={{ width:30, height:30, background:'#111', border:'1px solid #1e1e1e', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -132,11 +123,9 @@ export default function PayPage({ params }: { params: { username: string } }) {
         </div>
       </nav>
 
-      {/* MAIN */}
       <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'32px 20px' }}>
         <div style={{ width:'100%', maxWidth:400 }}>
 
-          {/* PROFILE CARD */}
           <div style={{ background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:20, padding:'24px 20px', marginBottom:12, textAlign:'center' }}>
             <div style={{ position:'relative', width:64, height:64, margin:'0 auto 14px' }}>
               <div style={{ position:'absolute', inset:-1, borderRadius:'50%', background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.6 }} />
@@ -153,10 +142,8 @@ export default function PayPage({ params }: { params: { username: string } }) {
             </div>
           </div>
 
-          {/* PAYMENT FORM */}
           {!txResult ? (
             <div style={{ background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:20, padding:20 }}>
-
               <div style={{ fontSize:9, color:'#444', fontWeight:700, letterSpacing:'.4px', marginBottom:6 }}>AMOUNT</div>
               <div style={{ background:'#080808', border:'1px solid #181818', borderRadius:12, padding:'11px 14px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -170,11 +157,10 @@ export default function PayPage({ params }: { params: { username: string } }) {
                 <div style={{ fontSize:9, color:'#333', marginTop:5 }}>Arc Testnet</div>
               </div>
 
-              {/* Quick amounts */}
               <div style={{ display:'flex', gap:6, marginBottom:12 }}>
                 {['10','50','100','500'].map(a => (
                   <button key={a} onClick={() => setAmount(a)}
-                    style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:11, fontWeight:700, border:'1px solid', cursor:'pointer', transition:'all .15s',
+                    style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:11, fontWeight:700, border:'1px solid', cursor:'pointer',
                       borderColor: amount===a?'#c9a84c':'#1a1a1a',
                       background: amount===a?'#1a1500':'#080808',
                       color: amount===a?'#c9a84c':'#444',
@@ -216,27 +202,20 @@ export default function PayPage({ params }: { params: { username: string } }) {
                     background: (!amount||paying)?'#1a1a1a':'linear-gradient(135deg,#c9a84c,#a07830)',
                     color: (!amount||paying)?'#444':'#000',
                     border:'none', borderRadius:12, fontSize:13, fontWeight:800,
-                    cursor: (!amount||paying)?'default':'pointer',
-                  }}>
+                    cursor: (!amount||paying)?'default':'pointer' }}>
                   {paying ? 'Sending...' : amount ? `Send ${amount} USDC to @${username}` : 'Enter amount'}
                 </button>
               )}
-
               <div style={{ textAlign:'center', fontSize:10, color:'#222', marginTop:10 }}>
                 Powered by Arc App Kit · Arc Testnet
               </div>
             </div>
           ) : (
-            /* SUCCESS */
             <div style={{ background:'#0e0e0e', border:'1px solid #1a3a1a', borderRadius:20, padding:'28px 20px', textAlign:'center' }}>
-              <div style={{ width:60, height:60, borderRadius:'50%', background:'#0a1a0a', border:'2px solid #c9a84c', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:26, color:'#c9a84c' }}>
-                ✓
-              </div>
+              <div style={{ width:60, height:60, borderRadius:'50%', background:'#0a1a0a', border:'2px solid #c9a84c', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:26, color:'#c9a84c' }}>✓</div>
               <h2 style={{ fontSize:18, fontWeight:800, color:'#fff', marginBottom:6 }}>Payment Sent!</h2>
               <p style={{ fontSize:12, color:'#555', marginBottom:16 }}>Successfully sent to @{username}</p>
-              <p style={{ fontSize:10, color:'#444', fontFamily:'monospace', marginBottom:16, wordBreak:'break-all' }}>
-                {txResult.txHash}
-              </p>
+              <p style={{ fontSize:10, color:'#444', fontFamily:'monospace', marginBottom:16, wordBreak:'break-all' }}>{txResult.txHash}</p>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 <a href={`https://testnet.arcscan.app/tx/${txResult.txHash}`} target="_blank" rel="noopener noreferrer"
                   style={{ display:'block', padding:10, background:'#1a1500', border:'1px solid #2a2500', borderRadius:10, fontSize:12, color:'#c9a84c', textDecoration:'none', fontWeight:600 }}>
@@ -246,8 +225,10 @@ export default function PayPage({ params }: { params: { username: string } }) {
                   style={{ padding:10, background:'#111', border:'1px solid #1e1e1e', borderRadius:10, fontSize:12, color:'#888', cursor:'pointer' }}>
                   Send Another Payment
                 </button>
-                <button onClick={shareSuccess}
-                  style={{ padding:10, background:'#0a1628', border:'1px solid #1e3a5f', borderRadius:10, fontSize:12, color:'#60a5fa', cursor:'pointer', fontWeight:700 }}>
+                <button onClick={() => {
+                  const t = `Just sent USDC on Arc Network! ⚡\n\narc-payouts.vercel.app/pay/${username}\n\n#ArcNetwork #USDC`
+                  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}`,'_blank')
+                }} style={{ padding:10, background:'#0a1628', border:'1px solid #1e3a5f', borderRadius:10, fontSize:12, color:'#60a5fa', cursor:'pointer', fontWeight:700 }}>
                   𝕏 Share on Twitter
                 </button>
               </div>
