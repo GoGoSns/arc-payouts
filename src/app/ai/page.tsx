@@ -148,7 +148,7 @@ When user wants to send/bridge/swap:
 
       const data = await response.json()
       const rawContent = data.content?.[0]?.text || "Sorry, I couldn't process that. Please try again."
-      const cleanContent = rawContent.replace(/ACTION:\s*\{[^}]+\}/s, '').trim()
+      const cleanContent = rawContent.replace(/ACTION:\s*\{[^}]+\}/, '').trim()
       const action = parseAction(rawContent)
 
       const assistantMsg: Message = {
