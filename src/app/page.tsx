@@ -568,7 +568,7 @@ const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalan
           <div className="w-72 border-l border-gray-800 p-5 flex flex-col gap-4">
             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="text-xs text-gray-400 mb-1">USDC BAKIYESI</div>
-              <div className="text-3xl font-bold">${${balanceFormatted}}</div>
+              <div className="text-3xl font-bold">${balanceFormatted}</div>
               <div className="text-xs text-blue-400 mt-1">Arc Testnet · Gercek Bakiye</div>
             </div>
             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
