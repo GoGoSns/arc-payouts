@@ -14,7 +14,7 @@ const WavesLogo = ({ size = 20 }: { size?: number }) => (
 )
 
 const DIFFS = {
-  easy:   { speed:1.6, gap:90,  grav:0.28, jump:-6.5, pipeInterval:220, maxUsdc:3,  mult:0.5 },
+  easy:   { speed:1.2, gap:110, grav:0.22, jump:-6.0, pipeInterval:280, maxUsdc:3,  mult:0.5 },
   medium: { speed:2.2, gap:75,  grav:0.34, jump:-7,   pipeInterval:190, maxUsdc:5,  mult:1   },
   hard:   { speed:3.0, gap:62,  grav:0.40, jump:-7.5, pipeInterval:170, maxUsdc:10, mult:2   },
 }
@@ -73,11 +73,11 @@ export default function GamePage() {
   }
 
   const flap = () => {
-    const s = stateRef.current
-    if (s.gameState==='over') { initGame(); return }
-    if (s.gameState==='idle') { stateRef.current.gameState='running'; setGameState('running') }
-    gameRef.current.bird.vy = gameRef.current.cfg.jump
-    gameRef.current.bird.angle = -0.4
+  const s = stateRef.current
+  if (s.gameState === 'over') { 
+    stateRef.current.diff = diff
+    initGame(diff)
+    return 
   }
 
   const spawnParticles = (x:number, y:number, color:string, n=8) => {
@@ -396,7 +396,7 @@ export default function GamePage() {
             style={{padding:'10px 14px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:10,fontSize:12,color:'#60a5fa',cursor:'pointer',fontWeight:700}}>
             𝕏 Share
           </button>
-          <button onClick={()=>initGame()}
+          <button onClick={() => { stateRef.current.diff = diff; initGame(diff) }}
             style={{padding:'10px 14px',background:'#111',border:'1px solid #222',borderRadius:10,fontSize:12,color:'#888',cursor:'pointer'}}>
             ↺ Retry
           </button>
