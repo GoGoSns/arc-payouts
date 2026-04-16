@@ -41,7 +41,7 @@ export default function AIPage() {
   const [messages, setMessages] = useState<Message[]>([{
     id: '1',
     role: 'assistant',
-    content: `Hey! I'm your Arc AI payment assistant powered by Google Gemini.\n\nI can help you:\n• Send USDC to anyone\n• Check your balances\n• Analyze your spending\n• Bridge or swap tokens\n• Answer questions about Arc Network\n\nWhat would you like to do?`,
+    content: `Hey! I'm your Arc AI payment assistant.\n\nI can help you:\n• Send USDC to anyone\n• Check your balances\n• Analyze your spending\n• Bridge or swap tokens\n• Answer questions about Arc Network\n\nWhat would you like to do?`,
   }])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -54,7 +54,6 @@ export default function AIPage() {
   const border = D ? '#1a1a1a' : '#e8e8e8'
   const text = D ? '#ffffff' : '#000000'
   const muted = D ? '#444444' : '#999999'
-  const field = D ? '#111111' : '#f5f5f5'
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -65,59 +64,48 @@ export default function AIPage() {
     return stored ? JSON.parse(stored) : []
   }
 
-  const sendMessage = async (text?: string) => {
-    const userText = text || input.trim()
-    if (!userText || loading) return
+  const sendMessage = async (userText?: string) => {
+    const text = userText || input.trim()
+    if (!text || loading) return
     setInput('')
 
-    const userMsg: Message = {
-      id: Math.random().toString(36).slice(2),
-      role: 'user',
-      content: userText,
-    }
+    const userMsg: Message = { id: Math.random().toString(36).slice(2), role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
 
     try {
       const txs = getTransactionHistory()
       const totalSent = txs.reduce((s: number, t: any) => s + parseFloat(t.amount || '0'), 0)
-      const recentTxs = txs.slice(0, 5).map((t: any) =>
-        `- ${t.name}: ${t.amount} USDC (${new Date(t.timestamp).toLocaleDateString()})`
-      ).join('\n')
+      const recentTxs = txs.slice(0, 5).map((t: any) => `- ${t.name}: ${t.amount} USDC`).join('\n')
 
-      const systemPrompt = `You are Arc AI, a friendly DeFi payment assistant for Arc Global Payouts — a USDC payment platform on Arc Network by GoGo.
-
+      const systemPrompt = `You are Arc AI, a friendly DeFi payment assistant for Arc Global Payouts on Arc Network by GoGo.
 User wallet: ${address || 'Not connected'}
 Total sent: $${totalSent.toFixed(2)} USDC
-Recent transactions:
-${recentTxs || 'No transactions yet'}
+Recent transactions: ${recentTxs || 'None'}
+Features: Send USDC, Bridge (ETH/ARB/OP/Base→Arc), Swap (USDC↔EURC↔ETH), Batch, NFT receipts, Payment links, Flappy USDC game.
+Be friendly and concise. Under 80 words.
+If user wants to send crypto, end with: ACTION:{"type":"send","amount":"X","to":"address","token":"USDC"}`
 
-Arc Network info:
-- Explorer: https://testnet.arcscan.app
-- Faucet: https://faucet.circle.com
-- Features: Send, Bridge (ETH/ARB/OP/Base → Arc), Swap (USDC↔EURC↔ETH), Batch, NFT receipts, Payment links, Flappy USDC game
-
-Be friendly, concise, and crypto-native. Keep responses under 100 words.
-If user wants to send/bridge/swap, end your response with exactly:
-ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
-
-      const conversationHistory = messages
-        .filter(m => m.id !== '1')
-        .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-
-      conversationHistory.push({ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser: ${userText}` }] })
-
-      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: conversationHistory }),
-        }
-      )
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.filter(m => m.id !== '1').map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: text },
+          ],
+          max_tokens: 200,
+          temperature: 0.7,
+        }),
+      })
 
       const data = await response.json()
-      const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that."
-
+      const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't process that."
       const actionMatch = rawContent.match(/ACTION:(\{[^}]+\})/)
       const cleanContent = rawContent.replace(/ACTION:\{[^}]+\}/, '').trim()
 
@@ -156,28 +144,22 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
         const stored = localStorage.getItem('arc_transactions')
         const existing = stored ? JSON.parse(stored) : []
         localStorage.setItem('arc_transactions', JSON.stringify([
-          { id: Math.random().toString(36).slice(2), name: `AI: Send to ${action.to}`, address: action.to, amount: action.amount, txHash, timestamp: new Date().toISOString() },
+          { id: Math.random().toString(36).slice(2), name: `AI: Send`, address: action.to, amount: action.amount, txHash, timestamp: new Date().toISOString() },
           ...existing
         ]))
         setMessages(prev => [...prev, {
           id: Math.random().toString(36).slice(2),
           role: 'assistant',
-          content: `✅ Sent ${action.amount} USDC!\n\nTx: ${txHash.slice(0,20)}...\n\nView on ArcScan: https://testnet.arcscan.app/tx/${txHash}`,
+          content: `✅ Sent ${action.amount} USDC!\n\nTx: ${txHash.slice(0, 20)}...\n\nView: https://testnet.arcscan.app/tx/${txHash}`,
         }])
       }
     } catch (e: any) {
       setMessages(prev => [...prev, {
         id: Math.random().toString(36).slice(2),
         role: 'assistant',
-        content: `❌ Transaction failed: ${e.message}`,
+        content: `❌ Failed: ${e.message}`,
       }])
     }
-  }
-
-  const formatContent = (content: string) => {
-    return content.split('\n').map((line, i) => (
-      <span key={i} style={{ display:'block', marginBottom: line===''?6:2 }}>{line}</span>
-    ))
   }
 
   return (
@@ -206,7 +188,7 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
 
       <div style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:12, maxWidth:700, width:'100%', margin:'0 auto' }}>
         {!isConnected && (
-          <div style={{ background:D?'#1a1500':'#fef9ec', border:'1px solid #2a2500', borderRadius:12, padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
+          <div style={{ background:D?'#1a1500':'#fef9ec', border:'1px solid #2a2500', borderRadius:12, padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap' }}>
             <span style={{ fontSize:12, color:'#c9a84c' }}>Connect wallet to unlock send/bridge/swap actions</span>
             <button onClick={() => connect({ connector: injected() })}
               style={{ fontSize:11, padding:'5px 12px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', borderRadius:8, cursor:'pointer', fontWeight:700 }}>
@@ -220,7 +202,7 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
             {msg.role === 'assistant' && (
               <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
                 <div style={{ position:'relative', width:22, height:22 }}>
-                  <div style={{ position:'absolute', inset:-1, borderRadius:'50%', background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.5 }} />
+                  <div style={{ position:'absolute', inset:-1, borderRadius:'50%', background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.5 }}/>
                   <div style={{ position:'absolute', inset:1, borderRadius:'50%', background:D?'#111':'#f5f5f5', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <WavesLogo size={12}/>
                   </div>
@@ -230,34 +212,32 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
             )}
             <div style={{
               maxWidth:'85%', padding:'10px 14px', fontSize:13, lineHeight:1.6,
-              borderRadius: msg.role==='user' ? '16px 16px 4px 16px' : '4px 16px 16px 16px',
-              background: msg.role==='user' ? (D?'#1a1500':'#fef9ec') : card,
-              border: msg.role==='user' ? '1px solid #2a2500' : `1px solid ${border}`,
-              color: msg.role==='user' ? '#c9a84c' : text,
+              borderRadius: msg.role==='user'?'16px 16px 4px 16px':'4px 16px 16px 16px',
+              background: msg.role==='user'?(D?'#1a1500':'#fef9ec'):card,
+              border: msg.role==='user'?'1px solid #2a2500':`1px solid ${border}`,
+              color: msg.role==='user'?'#c9a84c':text,
             }}>
-              {formatContent(msg.content)}
+              {msg.content.split('\n').map((line, i) => (
+                <span key={i} style={{ display:'block', marginBottom: line===''?6:2 }}>{line}</span>
+              ))}
               {msg.action && !msg.action.confirmed && (
                 <div style={{ marginTop:10, padding:'10px 12px', background:D?'#080808':'#f8f8f8', border:`1px solid ${border}`, borderRadius:10 }}>
                   <div style={{ fontSize:11, color:muted, marginBottom:8 }}>
-                    {msg.action.type === 'send' && `Send ${msg.action.amount} USDC to ${msg.action.to}`}
-                    {msg.action.type === 'bridge' && `Bridge ${msg.action.amount} USDC`}
-                    {msg.action.type === 'swap' && `Swap ${msg.action.amount} ${msg.action.token}`}
+                    {msg.action.type==='send' && `Send ${msg.action.amount} USDC to ${msg.action.to}`}
                   </div>
                   <div style={{ display:'flex', gap:6 }}>
                     <button onClick={() => confirmAction(msg.id, msg.action)}
                       style={{ flex:1, padding:'7px 12px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', borderRadius:8, fontSize:12, fontWeight:800, cursor:'pointer' }}>
                       ✓ Confirm
                     </button>
-                    <button onClick={() => setMessages(prev => prev.map(m => m.id===msg.id ? {...m, action:{...m.action!, confirmed:true}} : m))}
+                    <button onClick={() => setMessages(prev => prev.map(m => m.id===msg.id?{...m,action:{...m.action!,confirmed:true}}:m))}
                       style={{ padding:'7px 12px', background:D?'#1a0a0a':'#fff5f5', border:'1px solid #3a1a1a', borderRadius:8, fontSize:12, color:'#f87171', cursor:'pointer' }}>
                       ✕ Cancel
                     </button>
                   </div>
                 </div>
               )}
-              {msg.action?.confirmed && (
-                <div style={{ marginTop:8, fontSize:11, color:'#4ade80' }}>✓ Action confirmed</div>
-              )}
+              {msg.action?.confirmed && <div style={{ marginTop:8, fontSize:11, color:'#4ade80' }}>✓ Action confirmed</div>}
             </div>
           </div>
         ))}
@@ -265,7 +245,7 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
         {loading && (
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <div style={{ position:'relative', width:22, height:22 }}>
-              <div style={{ position:'absolute', inset:-1, borderRadius:'50%', background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.5 }} />
+              <div style={{ position:'absolute', inset:-1, borderRadius:'50%', background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)', animation:'sweep 3s linear infinite', opacity:.5 }}/>
               <div style={{ position:'absolute', inset:1, borderRadius:'50%', background:D?'#111':'#f5f5f5', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <WavesLogo size={12}/>
               </div>
@@ -299,14 +279,14 @@ ACTION:{"type":"send","amount":"X","to":"address_or_name","token":"USDC"}`
             style={{ flex:1, background:'transparent', border:'none', color:text, fontSize:13, outline:'none' }}/>
           <button onClick={() => sendMessage()} disabled={!input.trim()||loading}
             style={{ padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:800, border:'none',
-              cursor: !input.trim()||loading ? 'default' : 'pointer',
-              background: !input.trim()||loading ? D?'#1a1a1a':'#e8e8e8' : 'linear-gradient(135deg,#c9a84c,#a07830)',
-              color: !input.trim()||loading ? D?'#444':'#bbb' : '#000' }}>
+              cursor: !input.trim()||loading?'default':'pointer',
+              background: !input.trim()||loading?(D?'#1a1a1a':'#e8e8e8'):'linear-gradient(135deg,#c9a84c,#a07830)',
+              color: !input.trim()||loading?(D?'#444':'#bbb'):'#000' }}>
             {loading ? <span style={{ display:'inline-block', width:14, height:14, border:'2px solid #333', borderTopColor:'#c9a84c', borderRadius:'50%', animation:'spin .7s linear infinite' }}/> : 'Send ↗'}
           </button>
         </div>
         <div style={{ textAlign:'center', fontSize:10, color:D?'#222':'#ccc', marginTop:6 }}>
-          Arc AI · Powered by Google Gemini · Arc Network
+          Arc AI · Powered by Groq · Arc Network · by GoGo
         </div>
       </div>
     </div>
