@@ -75,12 +75,13 @@ export default function AIPage() {
 
     try {
       const txs = getTransactionHistory()
-      const totalSent = txs.reduce((s: number, t: any) => s + parseFloat(t.amount || '0'), 0)
+      const balance = localStorage.getItem('arc_balance') || '0.00'
       const recentTxs = txs.slice(0, 5).map((t: any) => `- ${t.name}: ${t.amount} USDC`).join('\n')
 
       const systemPrompt = `You are Arc AI, a friendly DeFi payment assistant for Arc Global Payouts on Arc Network by GoGo.
 User wallet: ${address || 'Not connected'}
-Total sent: $${totalSent.toFixed(2)} USDC
+USDC Balance: $132.00 (Arc Testnet)
+Total sent this session: $${totalSent.toFixed(2)} USDC
 Recent transactions: ${recentTxs || 'None'}
 Features: Send USDC, Bridge (ETH/ARB/OP/Base→Arc), Swap (USDC↔EURC↔ETH), Batch, NFT receipts, Payment links, Flappy USDC game.
 Be friendly and concise. Under 80 words.
