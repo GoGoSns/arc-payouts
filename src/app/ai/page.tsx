@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { useAccount, useConnect } from 'wagmi'
+import { useAccount, useConnect, useBalance } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 
 interface Message {
