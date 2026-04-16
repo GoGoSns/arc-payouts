@@ -1,433 +1,646 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { useAccount, useConnect } from 'wagmi'
+import Papa from 'papaparse'
+import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
 import { injected } from 'wagmi/connectors'
+import { uploadImageToIPFS, uploadNFTMetadata } from '@/lib/pinata'
 
-const WavesLogo = ({ size = 20 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-    <path d="M14 18 C14 18 24 10 34 18" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-    <path d="M14 24 C14 24 24 16 34 24" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-    <path d="M14 30 C14 30 24 22 34 30" stroke="#c9a84c" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-  </svg>
-)
-
-const DIFFS = {
-  easy:   { speed:1.2, gap:110, grav:0.22, jump:-6.0, pipeInterval:280, maxUsdc:3,  mult:0.5 },
-  medium: { speed:2.2, gap:75,  grav:0.34, jump:-7,   pipeInterval:190, maxUsdc:5,  mult:1   },
-  hard:   { speed:3.0, gap:62,  grav:0.40, jump:-7.5, pipeInterval:170, maxUsdc:10, mult:2   },
+interface Recipient {
+  id: string
+  name: string
+  address: string
+  amount: string
+  status: 'pending' | 'paid'
+  txHash?: string
+  nftMinted?: boolean
+  nftUrl?: string
 }
 
-export default function GamePage() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const gameRef = useRef<any>({})
-  const animRef = useRef<number>(0)
+type Tab = 'send' | 'batch' | 'nft' | 'bridge' | 'swap'
+
+const USDC_ADDRESS_ARC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
+
+const CHAINS = [
+  { id: 'Ethereum_Sepolia', label: 'ETH Sepolia',  dot: 'bg-blue-400' },
+  { id: 'Arbitrum_Sepolia', label: 'ARB Sepolia',  dot: 'bg-cyan-400' },
+  { id: 'Optimism_Sepolia', label: 'OP Sepolia',   dot: 'bg-red-400'  },
+  { id: 'Base_Sepolia',     label: 'Base Sepolia', dot: 'bg-indigo-400' },
+  { id: 'Arc_Testnet',      label: 'Arc Testnet',  dot: 'bg-green-400' },
+]
+
+export default function Home() {
   const { address, isConnected } = useAccount()
   const { connect } = useConnect()
+  const { disconnect } = useDisconnect()
 
-  const [diff, setDiff] = useState<'easy'|'medium'|'hard'>('easy')
-  const [score, setScore] = useState(0)
-  const [usdc, setUsdc] = useState(0)
-  const [combo, setCombo] = useState(1)
-  const [lives, setLives] = useState(3)
-  const [best, setBest] = useState(0)
-  const [gameState, setGameState] = useState<'idle'|'running'|'over'>('idle')
-  const [shieldActive, setShieldActive] = useState(false)
-  const [slowActive, setSlowActive] = useState(false)
-  const [doubleActive, setDoubleActive] = useState(false)
-  const [comboMsg, setComboMsg] = useState('')
-  const [leaderboard, setLeaderboard] = useState<{name:string,score:number,usdc:number}[]>([])
-  const [sending, setSending] = useState(false)
-  const [txHash, setTxHash] = useState('')
-  const [sendTarget, setSendTarget] = useState('')
-
-  const stateRef = useRef({
-    score:0, usdc:0, combo:1, lives:3, best:0,
-    gameState:'idle' as 'idle'|'running'|'over',
-    shieldActive:false, slowActive:false, doubleActive:false,
-    diff:'easy' as 'easy'|'medium'|'hard'
+  const { data: usdcBalance } = useBalance({
+    address,
+    token: USDC_ADDRESS_ARC as `0x${string}`,
   })
 
-  const syncState = () => {
-    setScore(stateRef.current.score)
-    setUsdc(stateRef.current.usdc)
-    setCombo(stateRef.current.combo)
-    setLives(stateRef.current.lives)
-    setBest(stateRef.current.best)
-    setShieldActive(stateRef.current.shieldActive)
-    setSlowActive(stateRef.current.slowActive)
-    setDoubleActive(stateRef.current.doubleActive)
+  const [tab, setTab] = useState<Tab>('send')
+  const [recipients, setRecipients] = useState<Recipient[]>([])
+  const [newName, setNewName] = useState('')
+  const [newAddress, setNewAddress] = useState('')
+  const [newAmount, setNewAmount] = useState('')
+  const [singleAddress, setSingleAddress] = useState('')
+  const [singleAmount, setSingleAmount] = useState('')
+  const [paying, setPaying] = useState(false)
+  const [batchPaying, setBatchPaying] = useState(false)
+  const [nftImageUrl, setNftImageUrl] = useState('')
+  const [nftImagePreview, setNftImagePreview] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [txResult, setTxResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const nftImageRef = useRef<HTMLInputElement>(null)
+
+  const [bridgeAmount, setBridgeAmount] = useState('')
+  const [bridgePaying, setBridgePaying] = useState(false)
+  const [bridgeResult, setBridgeResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
+  const [bridgeFrom, setBridgeFrom] = useState('Ethereum_Sepolia')
+  const [bridgeTo, setBridgeTo] = useState('Arc_Testnet')
+
+  const [swapAmount, setSwapAmount] = useState('')
+  const [swapPaying, setSwapPaying] = useState(false)
+  const [swapResult, setSwapResult] = useState<{txHash: string, explorerUrl?: string} | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
+
+  const connectWallet = () => connect({ connector: injected() })
+
+  const flipBridge = () => {
+    const tmp = bridgeFrom
+    setBridgeFrom(bridgeTo)
+    setBridgeTo(tmp)
   }
 
-  const initGame = (d: 'easy'|'medium'|'hard' = stateRef.current.diff) => {
-    const cfg = DIFFS[d]
-    const g = gameRef.current
-    g.bird = { x:90, y:200, vy:0, r:13, angle:0 }
-    g.pipes = []; g.powerups = []; g.particles = []
-    g.stars = Array.from({length:50}, () => ({ x:Math.random()*560, y:Math.random()*400*.7, r:Math.random()*1.5+.3, spd:Math.random()*.2+.05 }))
-    g.buildings = Array.from({length:10}, (_,i) => ({ x:i*60, w:30+Math.random()*25, h:15+Math.random()*45 }))
-    g.frame = 0; g.cfg = cfg
-    stateRef.current = { ...stateRef.current, score:0, usdc:0, combo:1, lives:3, gameState:'idle', shieldActive:false, slowActive:false, doubleActive:false, diff:d }
-    syncState(); setGameState('idle'); setComboMsg(''); setTxHash('')
+  const handleNFTImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setNftImagePreview(URL.createObjectURL(file))
+    setUploadingImage(true)
+    try {
+      const url = await uploadImageToIPFS(file)
+      setNftImageUrl(url)
+    } catch (e: any) { alert('Gorsel yuklenemedi: ' + e.message) }
+    setUploadingImage(false)
   }
 
-  const flap = () => {
-  const s = stateRef.current
-  if (s.gameState === 'over') { 
-    stateRef.current.diff = diff
-    initGame(diff)
-    return 
+  const saveTransaction = (name: string, addr: string, amount: string, txHash: string, explorerUrl?: string, nftUrl?: string) => {
+    const tx = { id: Math.random().toString(36).slice(2), name, address: addr, amount, txHash, explorerUrl, nftUrl, timestamp: new Date().toISOString() }
+    setTransactions(prev => [tx, ...prev])
+    const stored = localStorage.getItem('arc_transactions')
+    const existing = stored ? JSON.parse(stored) : []
+    localStorage.setItem('arc_transactions', JSON.stringify([tx, ...existing]))
   }
 
-  const spawnParticles = (x:number, y:number, color:string, n=8) => {
-    for (let i=0;i<n;i++) {
-      const a = Math.random()*Math.PI*2
-      gameRef.current.particles.push({ x, y, vx:Math.cos(a)*(2+Math.random()*2), vy:Math.sin(a)*(2+Math.random()*2), life:1, color })
-    }
-  }
-
-  const loseLife = () => {
-    const s = stateRef.current
-    spawnParticles(gameRef.current.bird.x, gameRef.current.bird.y, '#f87171', 16)
-    const newLives = s.lives-1
-    stateRef.current.lives = newLives
-    stateRef.current.combo = 1
-    if (newLives<=0) {
-      stateRef.current.gameState='over'; setGameState('over')
-      const newBest = Math.max(s.best, s.score)
-      stateRef.current.best = newBest
-      if (s.usdc>0) {
-        setLeaderboard(prev => {
-          const next = [...prev, { name:'GoGo', score:s.score, usdc:s.usdc }]
-            .sort((a,b)=>b.score-a.score).slice(0,5)
-          return next
-        })
-        const stored = localStorage.getItem('arc_transactions')
-        const existing = stored ? JSON.parse(stored) : []
-        const tx = { id:Math.random().toString(36).slice(2), name:'Flappy USDC Game', address:'', amount:s.usdc.toFixed(2), txHash:'', timestamp:new Date().toISOString() }
-        localStorage.setItem('arc_transactions', JSON.stringify([tx, ...existing]))
+  const sendSingle = async () => {
+    if (!singleAddress || !singleAmount) { alert('Adres ve miktar girin!'); return }
+    setPaying(true); setTxResult(null)
+    try {
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.send({ from: { adapter, chain: 'Arc_Testnet' as never }, to: singleAddress, amount: singleAmount, token: 'USDC' })
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+      let nftUrl = ''
+      if (nftImageUrl) {
+        nftUrl = await uploadNFTMetadata('Payment Receipt', `${singleAmount} USDC odeme`, nftImageUrl, [
+          { trait_type: 'Amount', value: `${singleAmount} USDC` },
+          { trait_type: 'Network', value: 'Arc Testnet' },
+        ])
       }
-    } else {
-      gameRef.current.bird = { ...gameRef.current.bird, y:200, vy:0 }
-    }
-    syncState()
+      saveTransaction('Manuel Odeme', singleAddress, singleAmount, txHash, undefined, nftUrl)
+      setTxResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
+      setSingleAddress(''); setSingleAmount('')
+    } catch (e: any) { alert('Hata: ' + e.message) }
+    setPaying(false)
   }
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    initGame('easy')
-    const handleKey = (e:KeyboardEvent) => { if(e.code==='Space'){e.preventDefault();flap()} }
-    window.addEventListener('keydown', handleKey)
-
-    const loop = () => {
-      const W=canvas.width, H=canvas.height
-      const s=stateRef.current, g=gameRef.current
-      const cfg=g.cfg||DIFFS.easy
-      ctx.clearRect(0,0,W,H)
-      ctx.fillStyle='#050810'; ctx.fillRect(0,0,W,H)
-
-      g.stars?.forEach((st:any) => {
-        if(s.gameState==='running'){st.x-=st.spd;if(st.x<0)st.x=W}
-        ctx.beginPath();ctx.arc(st.x,st.y,st.r,0,Math.PI*2)
-        ctx.fillStyle=`rgba(201,168,76,${0.2+st.r*.15})`;ctx.fill()
+  const sendBridge = async () => {
+    if (!bridgeAmount) { alert('Miktar girin!'); return }
+    setBridgePaying(true); setBridgeResult(null)
+    try {
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.bridge({
+        from: { adapter, chain: bridgeFrom as never },
+        to: { adapter, chain: bridgeTo as never },
+        amount: bridgeAmount, token: 'USDC',
       })
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+      const fromLabel = CHAINS.find(c => c.id === bridgeFrom)?.label || bridgeFrom
+      const toLabel = CHAINS.find(c => c.id === bridgeTo)?.label || bridgeTo
+      saveTransaction(`Bridge ${fromLabel} to ${toLabel}`, address || '', bridgeAmount, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
+      setBridgeResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
+      setBridgeAmount('')
+    } catch (e: any) { alert('Hata: ' + e.message) }
+    setBridgePaying(false)
+  }
 
-      g.buildings?.forEach((b:any) => {
-        if(s.gameState==='running'){b.x-=0.4;if(b.x+b.w<0){b.x=W+10;b.h=15+Math.random()*45}}
-        ctx.fillStyle='#0d0d14';ctx.fillRect(b.x,H-b.h,b.w,b.h)
-        for(let wy=H-b.h+5;wy<H-4;wy+=10)
-          for(let wx=b.x+3;wx<b.x+b.w-3;wx+=7)
-            if(Math.random()>.75){ctx.fillStyle='#c9a84c22';ctx.fillRect(wx,wy,3,4)}
-      })
+  const sendSwap = async () => {
+    if (!swapAmount) { alert('Miktar girin!'); return }
+    setSwapPaying(true); setSwapResult(null)
+    try {
+      const { AppKit } = await import('@circle-fin/app-kit')
+      const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+      const kit = new AppKit()
+      const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+      const res = await kit.swap({ from: { adapter, chain: 'Arc_Testnet' as never }, tokenIn: 'USDC', tokenOut: 'EURC', amountIn: swapAmount, config: { slippageBps: 300 } })
+      const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+      saveTransaction('Swap USDC to EURC', address || '', swapAmount, txHash, `https://testnet.arcscan.app/tx/${txHash}`)
+      setSwapResult({ txHash, explorerUrl: `https://testnet.arcscan.app/tx/${txHash}` })
+      setSwapAmount('')
+    } catch (e: any) { alert('Hata: ' + e.message) }
+    setSwapPaying(false)
+  }
 
-      ctx.fillStyle='#1a1a1a';ctx.fillRect(0,H-2,W,2)
+  const addRecipient = () => {
+    if (!newName || !newAddress || !newAmount) { alert('Tum alanlari doldurun!'); return }
+    setRecipients([...recipients, { id: Math.random().toString(36).slice(2), name: newName, address: newAddress, amount: newAmount, status: 'pending' }])
+    setNewName(''); setNewAddress(''); setNewAmount('')
+  }
 
-      if(s.gameState==='idle'){
-        ctx.fillStyle='#c9a84c';ctx.font='700 15px system-ui';ctx.textAlign='center'
-        ctx.fillText('Tap or SPACE to start',W/2,H/2-4)
-        ctx.fillStyle='#555';ctx.font='11px system-ui'
-        ctx.fillText('Pass pipes to earn USDC!',W/2,H/2+16)
-        ctx.textAlign='left'
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    Papa.parse(file, {
+      header: true,
+      complete: (results) => {
+        const imported = (results.data as any[]).filter(r => r.address && r.amount).map(r => ({
+          id: Math.random().toString(36).slice(2), name: r.name || 'Isimsiz', address: r.address, amount: r.amount, status: 'pending' as const
+        }))
+        setRecipients(prev => [...prev, ...imported])
+        alert(`${imported.length} alici eklendi!`)
       }
+    })
+  }
 
-      if(s.gameState==='running'){
-        g.frame++
-        const spd=s.slowActive?cfg.speed*.5:cfg.speed
-        g.bird.vy+=cfg.grav; g.bird.y+=g.bird.vy
-        g.bird.angle=Math.max(-0.45,Math.min(1.3,g.bird.vy*.08))
-
-        if(s.shieldActive){g.shieldTimer=(g.shieldTimer||0)-1;if(g.shieldTimer<=0){stateRef.current.shieldActive=false;setShieldActive(false)}}
-        if(s.slowActive){g.slowTimer=(g.slowTimer||0)-1;if(g.slowTimer<=0){stateRef.current.slowActive=false;setSlowActive(false)}}
-        if(s.doubleActive){g.doubleTimer=(g.doubleTimer||0)-1;if(g.doubleTimer<=0){stateRef.current.doubleActive=false;setDoubleActive(false)}}
-
-        if(!g.pipes.length||g.pipes[g.pipes.length-1].x<W-cfg.pipeInterval){
-          const topH=40+Math.random()*(H-cfg.gap-80)
-          g.pipes.push({x:W,topH,passed:false})
+  const sendBatch = async () => {
+    const pending = recipients.filter(r => r.status === 'pending')
+    if (!pending.length) { alert('Bekleyen alici yok!'); return }
+    if (!confirm(`${pending.length} kisiye odeme gonderilecek. Devam?`)) return
+    setBatchPaying(true)
+    const { AppKit } = await import('@circle-fin/app-kit')
+    const { createViemAdapterFromProvider } = await import('@circle-fin/adapter-viem-v2')
+    const kit = new AppKit()
+    const adapter = await createViemAdapterFromProvider({ provider: (window as any).ethereum })
+    for (const r of pending) {
+      try {
+        const res = await kit.send({ from: { adapter, chain: 'Arc_Testnet' as never }, to: r.address, amount: r.amount, token: 'USDC' })
+        const txHash = (res as any)?.hash || (res as any)?.txHash || ''
+        let nftUrl = ''
+        if (nftImageUrl) {
+          nftUrl = await uploadNFTMetadata(`Receipt - ${r.name}`, `${r.amount} USDC`, nftImageUrl, [
+            { trait_type: 'Recipient', value: r.name }, { trait_type: 'Amount', value: `${r.amount} USDC` },
+          ])
         }
-
-        if(g.frame%280===0){
-          const types=['shield','slow','double']
-          g.powerups.push({x:W,y:40+Math.random()*(H-80),type:types[Math.floor(Math.random()*3)],r:11})
-        }
-
-        g.powerups.forEach((p:any,i:number)=>{
-          p.x-=spd
-          const dx=g.bird.x-p.x,dy=g.bird.y-p.y
-          if(Math.sqrt(dx*dx+dy*dy)<g.bird.r+p.r){
-            if(p.type==='shield'){stateRef.current.shieldActive=true;g.shieldTimer=360;setShieldActive(true)}
-            else if(p.type==='slow'){stateRef.current.slowActive=true;g.slowTimer=360;setSlowActive(true)}
-            else{stateRef.current.doubleActive=true;g.doubleTimer=360;setDoubleActive(true)}
-            spawnParticles(p.x,p.y,'#c9a84c',14)
-            g.powerups.splice(i,1)
-          }
-        })
-        g.powerups=g.powerups.filter((p:any)=>p.x>-30)
-
-        g.pipes.forEach((p:any)=>{
-          p.x-=spd
-          if(!p.passed&&p.x+28<g.bird.x){
-            p.passed=true
-            const newScore=s.score+1
-            const newCombo=Math.min(s.combo+1,5)
-            const mul=s.doubleActive?2:1
-            const base=cfg.mult*0.5
-            const earned=parseFloat((base*mul*(newCombo>=3?1+newCombo*.2:1)).toFixed(2))
-            const newUsdc=Math.min(parseFloat((s.usdc+earned).toFixed(2)),cfg.maxUsdc)
-            stateRef.current.score=newScore
-            stateRef.current.combo=newCombo
-            stateRef.current.usdc=newUsdc
-            spawnParticles(g.bird.x,g.bird.y,'#c9a84c',8)
-            if(newCombo>=3){setComboMsg(`COMBO x${newCombo}! +${earned} USDC`);setTimeout(()=>setComboMsg(''),1000)}
-            syncState()
-          }
-          const hb=g.bird.r-3
-          if(g.bird.x+hb>p.x+3&&g.bird.x-hb<p.x+25){
-            if(g.bird.y-hb<p.topH||g.bird.y+hb>p.topH+cfg.gap){
-              if(s.shieldActive){stateRef.current.shieldActive=false;g.shieldTimer=0;setShieldActive(false);spawnParticles(g.bird.x,g.bird.y,'#60a5fa',12)}
-              else loseLife()
-            }
-          }
-        })
-        g.pipes=g.pipes.filter((p:any)=>p.x>-35)
-        if(g.bird.y-g.bird.r+2<0||g.bird.y+g.bird.r-2>H) loseLife()
-      }
-
-      g.pipes?.forEach((p:any)=>{
-        const pc=s.shieldActive?'#1e3a5f':'#1a1500'
-        const bc=s.shieldActive?'#60a5fa':'#c9a84c'
-        ctx.fillStyle=pc;ctx.fillRect(p.x,0,28,p.topH);ctx.fillRect(p.x,p.topH+cfg.gap,28,H-p.topH-cfg.gap)
-        ctx.fillStyle=bc;ctx.fillRect(p.x-3,p.topH-9,34,9);ctx.fillRect(p.x-3,p.topH+cfg.gap,34,9)
-        ctx.strokeStyle=bc+'44';ctx.lineWidth=1.5;ctx.lineCap='round'
-        const mx=p.x+14,my=p.topH/2
-        ;[-6,0,6].forEach((dy:number)=>{
-          ctx.beginPath();ctx.moveTo(mx-5,my+dy);ctx.quadraticCurveTo(mx,my+dy-5,mx+5,my+dy);ctx.stroke()
-        })
-      })
-
-      g.powerups?.forEach((p:any)=>{
-        const colors:Record<string,string>={shield:'#60a5fa',slow:'#c9a84c',double:'#4ade80'}
-        const c=colors[p.type]
-        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2)
-        ctx.fillStyle=c+'33';ctx.fill()
-        ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.stroke()
-        ctx.fillStyle=c;ctx.font='700 8px system-ui';ctx.textAlign='center';ctx.textBaseline='middle'
-        ctx.fillText(p.type==='shield'?'S':p.type==='slow'?'T':'2x',p.x,p.y)
-        ctx.textAlign='left';ctx.textBaseline='alphabetic'
-      })
-
-      g.particles?.forEach((p:any)=>{
-        p.x+=p.vx;p.y+=p.vy;p.life-=0.05;p.vy+=.08
-        ctx.beginPath();ctx.arc(p.x,p.y,3*p.life,0,Math.PI*2)
-        const alpha=Math.floor(p.life*255).toString(16).padStart(2,'0')
-        ctx.fillStyle=p.color+alpha;ctx.fill()
-      })
-      if(g.particles)g.particles=g.particles.filter((p:any)=>p.life>0)
-
-      const b=g.bird
-      if(b){
-        ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.angle)
-        if(s.shieldActive){ctx.beginPath();ctx.arc(0,0,b.r+6,0,Math.PI*2);ctx.fillStyle='#60a5fa22';ctx.fill()}
-        ctx.beginPath();ctx.arc(0,0,b.r,0,Math.PI*2)
-        ctx.fillStyle=s.gameState==='over'?'#f87171':s.shieldActive?'#60a5fa':'#c9a84c';ctx.fill()
-        ctx.strokeStyle=s.gameState==='over'?'#7f1d1d':s.shieldActive?'#1e3a5f':'#a07830';ctx.lineWidth=2;ctx.stroke()
-        ctx.fillStyle='#000';ctx.font='700 12px system-ui';ctx.textAlign='center';ctx.textBaseline='middle'
-        ctx.fillText('$',0,0);ctx.restore()
-      }
-
-      if(s.gameState==='over'){
-        ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,0,W,H)
-        ctx.fillStyle='#f87171';ctx.font='700 20px system-ui';ctx.textAlign='center'
-        ctx.fillText('GAME OVER',W/2,H/2-20)
-        ctx.fillStyle='#c9a84c';ctx.font='700 14px system-ui'
-        ctx.fillText(`${s.score} pipes → ${s.usdc.toFixed(2)} USDC earned`,W/2,H/2+4)
-        ctx.fillStyle='#555';ctx.font='12px system-ui'
-        ctx.fillText('Tap or SPACE to retry',W/2,H/2+26)
-        ctx.textAlign='left'
-      }
-
-      animRef.current=requestAnimationFrame(loop)
+        saveTransaction(r.name, r.address, r.amount, txHash, undefined, nftUrl)
+        setRecipients(prev => prev.map(x => x.id === r.id ? { ...x, status: 'paid', txHash, nftMinted: !!nftUrl, nftUrl } : x))
+      } catch (e: any) { console.error(e) }
     }
-
-    animRef.current=requestAnimationFrame(loop)
-    return()=>{cancelAnimationFrame(animRef.current);window.removeEventListener('keydown',handleKey)}
-  }, [])
-
-  const handleDiff=(d:'easy'|'medium'|'hard')=>{setDiff(d);stateRef.current.diff=d;initGame(d)}
-
-  const sendUsdc=async()=>{
-    if(!isConnected||!sendTarget||stateRef.current.usdc<=0)return
-    setSending(true)
-    try{
-      const{AppKit}=await import('@circle-fin/app-kit')
-      const{createViemAdapterFromProvider}=await import('@circle-fin/adapter-viem-v2')
-      const kit=new AppKit()
-      const adapter=await createViemAdapterFromProvider({provider:(window as any).ethereum})
-      const res=await kit.send({from:{adapter,chain:'Arc_Testnet' as never},to:sendTarget,amount:stateRef.current.usdc.toFixed(2),token:'USDC'})
-      const hash=(res as any)?.hash||(res as any)?.txHash||''
-      setTxHash(hash)
-    }catch(e:any){alert('Error: '+e.message)}
-    setSending(false)
+    setBatchPaying(false)
+    alert('Tum odemeler tamamlandi!')
   }
 
-  const shareScore=()=>{
-    const s=stateRef.current
-    const text=`I just earned ${s.usdc.toFixed(2)} USDC playing Flappy USDC on Arc Network! 🎮⚡\n\nScore: ${s.score} pipes\n\narc-payouts.vercel.app/game\n\n#ArcNetwork #USDC #DeFi`
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,'_blank')
+  const downloadTemplate = () => {
+    const csv = 'name,address,amount\nAhmet Yilmaz,0x1234567890123456789012345678901234567890,100'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'template.csv'; a.click()
   }
 
-  const medals=['🥇','🥈','🥉','4.','5.']
+  const totalPaid = transactions.reduce((s, t) => s + parseFloat(t.amount || '0'), 0)
+  const pendingCount = recipients.filter(r => r.status === 'pending').length
+  const showSidePanel = tab === 'send' || tab === 'nft' || tab === 'bridge' || tab === 'swap'
+  const usdcFormatted = usdcBalance ? parseFloat(usdcBalance.formatted).toFixed(2) : '—'
+  const TAB_LABELS: Record<Tab, string> = { send: 'Send', batch: 'Batch Payout', nft: 'NFT Receipt', bridge: 'Bridge', swap: 'Swap' }
 
-  return(
-    <div style={{minHeight:'100vh',background:'#080808',color:'#fff',fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'}}>
-      <style>{`@keyframes sweep{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+  const TxBox = ({ result }: { result: { txHash: string; explorerUrl?: string } }) => (
+    <div className="rounded-xl p-4 bg-gray-800 border-l-4 border-green-500">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-green-400 text-sm font-bold">✓ Transaction confirmed</span>
+      </div>
+      <p className="text-xs text-gray-400 font-mono truncate">{result.txHash}</p>
+      {result.explorerUrl && (
+        <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-green-400 text-xs hover:underline mt-1 block">
+          View on ArcScan →
+        </a>
+      )}
+    </div>
+  )
 
-      <nav style={{borderBottom:'1px solid #141414',padding:'11px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#080808'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:30,height:30,background:'#111',border:'1px solid #1e1e1e',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <WavesLogo size={16}/>
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="text-6xl mb-6">🌐</div>
+          <h1 className="text-4xl font-bold text-white mb-4">Arc Global Payouts</h1>
+          <p className="text-gray-400 mb-8">USDC ile global odeme platformu</p>
+          <div className="flex flex-col gap-3 mb-8 max-w-xs mx-auto text-left">
+            <p className="text-xs text-gray-500 text-center mb-1">Ilk kez mi? Once sunlari yap:</p>
+            <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 hover:border-gray-500 transition-colors">
+              <span className="text-xl">⚙️</span>
+              <div><div className="text-sm font-medium text-white">1. Arc Testnet Agini Kur</div><div className="text-xs text-gray-500">MetaMask a otomatik ekle</div></div>
+              <span className="ml-auto text-gray-600 text-xs">↗</span>
+            </a>
+            <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 hover:border-gray-500 transition-colors">
+              <span className="text-xl">🚰</span>
+              <div><div className="text-sm font-medium text-white">2. Test USDC Al</div><div className="text-xs text-gray-500">Circle Faucet - ucretsiz</div></div>
+              <span className="ml-auto text-gray-600 text-xs">↗</span>
+            </a>
           </div>
+          <button onClick={connectWallet} className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg hover:bg-gray-100">
+            3. Cuzdani Bagla
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col">
+      <nav className="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🌐</span>
           <div>
-            <div style={{fontWeight:700,fontSize:13,color:'#fff'}}>Flappy USDC</div>
-            <div style={{fontSize:8,color:'#c9a84c',fontWeight:700,letterSpacing:'.8px'}}>ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span></div>
+            <div className="font-bold text-sm">Arc Global Payouts</div>
+            <div className="text-xs text-gray-500">ARC NETWORK</div>
           </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {(['easy','medium','hard'] as const).map(d=>(
-            <button key={d} onClick={()=>handleDiff(d)}
-              style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1px solid',cursor:'pointer',
-                borderColor:diff===d?'#c9a84c':'#1a1a1a',
-                background:diff===d?'#1a1500':'#0e0e0e',
-                color:diff===d?'#c9a84c':'#555'}}>
-              {d.charAt(0).toUpperCase()+d.slice(1)}
-            </button>
-          ))}
-          <Link href="/" style={{fontSize:11,color:'#555',textDecoration:'none',padding:'5px 10px',background:'#111',border:'1px solid #1e1e1e',borderRadius:8}}>← Back</Link>
+        <div className="flex items-center gap-3">
+          <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-gray-900 rounded-full px-3 py-1 hover:bg-gray-800 transition-colors">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-xs">Arc Testnet</span>
+            <span className="text-xs text-gray-600">⚙</span>
+          </a>
+          <div className="bg-gray-900 rounded-full px-3 py-1 text-xs">USDC</div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-purple-500 rounded-full"></div>
+            <span className="text-xs text-gray-400">{address?.slice(0,6)}...{address?.slice(-4)}</span>
+          </div>
+          <Link href="/history" className="text-xs text-gray-400 hover:text-white">Gecmis</Link>
+          <div className="relative">
+            <button onClick={() => setShowHelp(!showHelp)}
+              className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center justify-center">?</button>
+            {showHelp && (
+              <div className="absolute right-0 top-8 w-64 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 p-3">
+                <div className="text-xs text-gray-400 font-medium mb-3 px-1">🛠 Gelistirici Araclari</div>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { href: 'https://faucet.circle.com', icon: '🚰', title: 'Test USDC Faucet', sub: 'faucet.circle.com' },
+                    { href: 'https://thirdweb.com/arc-testnet', icon: '⚙️', title: 'Arc Testnet Ag Kurulumu', sub: 'thirdweb.com/arc-testnet' },
+                    { href: 'https://testnet.arcscan.app', icon: '🔍', title: 'ArcScan Explorer', sub: 'testnet.arcscan.app' },
+                  ].map(item => (
+                    <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setShowHelp(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors">
+                      <span>{item.icon}</span>
+                      <div><div className="text-sm font-medium text-white">{item.title}</div><div className="text-xs text-gray-500">{item.sub}</div></div>
+                    </a>
+                  ))}
+                </div>
+                <div className="border-t border-gray-800 mt-2 pt-2 px-1">
+                  <div className="text-xs text-gray-600">Arc Global Payouts v1.0</div>
+                </div>
+              </div>
+            )}
+          </div>
+          <button onClick={() => disconnect()} className="text-xs text-gray-500 hover:text-red-400">Cikis</button>
         </div>
       </nav>
 
-      <div style={{padding:'12px 16px',maxWidth:640,margin:'0 auto'}}>
-        <div style={{display:'flex',gap:8,marginBottom:10}}>
-          {[
-            {label:'PIPES',value:score,color:'#fff'},
-            {label:'USDC',value:usdc.toFixed(2),color:'#c9a84c'},
-            {label:'COMBO',value:`x${combo}`,color:'#c9a84c'},
-            {label:'LIVES',value:'♥'.repeat(Math.max(0,lives)),color:'#f87171'},
-            {label:'BEST',value:best,color:'#c9a84c'},
-          ].map(s=>(
-            <div key={s.label} style={{flex:1,background:'#0e0e0e',border:'1px solid #1a1a1a',borderRadius:10,padding:'7px 8px',textAlign:'center'}}>
-              <div style={{fontSize:8,color:'#444',fontWeight:700,letterSpacing:'.4px'}}>{s.label}</div>
-              <div style={{fontSize:15,fontWeight:300,color:s.color,letterSpacing:'-1px'}}>{s.value}</div>
-            </div>
+      <div className="border-b border-gray-800 px-6">
+        <div className="flex gap-6">
+          {(['send', 'batch', 'nft', 'bridge', 'swap'] as Tab[]).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`py-3 text-sm font-medium transition-colors border-b-2 ${tab === t ? 'text-white border-white' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
+              {TAB_LABELS[t]}
+            </button>
           ))}
         </div>
+      </div>
 
-        <div style={{position:'relative',marginBottom:8}}>
-          <canvas ref={canvasRef} width={560} height={220} onClick={flap}
-            style={{width:'100%',borderRadius:12,border:'1px solid #1a1a1a',cursor:'pointer',display:'block'}}/>
-          {comboMsg&&(
-            <div style={{position:'absolute',top:14,left:'50%',transform:'translateX(-50%)',background:'#c9a84c',color:'#000',padding:'4px 14px',borderRadius:20,fontSize:12,fontWeight:800,whiteSpace:'nowrap',pointerEvents:'none'}}>
-              {comboMsg}
+      <div className="flex flex-1" onClick={() => showHelp && setShowHelp(false)}>
+
+        {showSidePanel && (
+          <div className="flex-1 flex items-start justify-center p-8">
+            <div className="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-800 p-6">
+
+              {tab === 'send' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <input type="number" value={singleAmount} onChange={e => setSingleAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">↓</div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">TO</label>
+                    <input type="text" value={singleAddress} onChange={e => setSingleAddress(e.target.value)} placeholder="0x..." className="w-full bg-gray-800 rounded-xl p-4 text-sm outline-none placeholder-gray-600" />
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  {singleAmount && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-400"><span>Network gas</span><span>~0.009 USDC</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 USDC = 1 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>Total sent</span><span>{singleAmount} USDC</span></div>
+                    </div>
+                  )}
+                  <button onClick={sendSingle} disabled={paying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {paying ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>Gonderiliyor...</span> : 'Confirm transfer'}
+                  </button>
+                  {txResult && <TxBox result={txResult} />}
+                  <div className="text-center text-xs text-gray-600">Arc Testnet · sub-second finality · USDC-native gas · Powered by Arc App Kit</div>
+                </div>
+              )}
+
+              {tab === 'nft' && (
+                <div className="space-y-4">
+                  <h2 className="font-bold text-lg">🎨 NFT Receipt Gorseli</h2>
+                  <p className="text-gray-400 text-sm">Her odeme sonrasi bu gorsel ile NFT receipt olusturulacak</p>
+                  <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center">
+                    {nftImagePreview ? <img src={nftImagePreview} alt="NFT" className="w-32 h-32 rounded-xl object-cover mx-auto mb-3" /> : <div className="text-4xl mb-3">🎨</div>}
+                    <button onClick={() => nftImageRef.current?.click()} disabled={uploadingImage} className="px-4 py-2 bg-purple-600 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50">
+                      {uploadingImage ? '⏳ Yukleniyor...' : nftImageUrl ? '✅ Gorsel Yuklendi' : 'Gorsel Sec'}
+                    </button>
+                    <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} className="hidden" />
+                  </div>
+                  {nftImageUrl && <div className="bg-green-900/30 border border-green-800 rounded-lg p-3 text-sm text-green-400">✅ IPFS e yuklendi — odemeler bu gorsel ile NFT receipt alacak</div>}
+                </div>
+              )}
+
+              {tab === 'bridge' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-2 block">FROM</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {CHAINS.filter(c => c.id !== bridgeTo).map(chain => (
+                        <button key={chain.id} onClick={() => setBridgeFrom(chain.id)}
+                          className={`py-2 px-2 rounded-xl text-xs font-medium border transition-colors ${bridgeFrom === chain.id ? 'border-white text-white bg-gray-700' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
+                          {chain.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU SEND</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <input type="number" value={bridgeAmount} onChange={e => setBridgeAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeFrom)?.dot}`}></div>
+                      <span className="text-xs text-gray-500">{CHAINS.find(c => c.id === bridgeFrom)?.label}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-center">
+                    <button onClick={flipBridge} className="w-10 h-10 bg-gray-800 border border-gray-700 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 hover:border-gray-500 transition-colors text-lg">⇅</button>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-2 block">TO</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {CHAINS.filter(c => c.id !== bridgeFrom).map(chain => (
+                        <button key={chain.id} onClick={() => setBridgeTo(chain.id)}
+                          className={`py-2 px-2 rounded-xl text-xs font-medium border transition-colors ${bridgeTo === chain.id ? 'border-white text-white bg-gray-700' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${chain.dot} inline-block mr-1`}></div>
+                          {chain.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <span className="text-3xl font-bold flex-1 text-gray-500">{bridgeAmount || '0'}</span>
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <div className={`w-2 h-2 rounded-full ${CHAINS.find(c => c.id === bridgeTo)?.dot}`}></div>
+                      <span className="text-xs text-gray-500">{CHAINS.find(c => c.id === bridgeTo)?.label}</span>
+                    </div>
+                  </div>
+                  {bridgeAmount && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-400"><span>From</span><span>{CHAINS.find(c => c.id === bridgeFrom)?.label}</span></div>
+                      <div className="flex justify-between text-gray-400"><span>To</span><span>{CHAINS.find(c => c.id === bridgeTo)?.label}</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Bridge fee</span><span>~0.01 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>You receive</span><span>{bridgeAmount} USDC</span></div>
+                    </div>
+                  )}
+                  <button onClick={sendBridge} disabled={bridgePaying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {bridgePaying ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>Bridge yapiliyor...</span> : 'Confirm bridge'}
+                  </button>
+                  {bridgeResult && <TxBox result={bridgeResult} />}
+                  <div className="text-center text-xs text-gray-600">{CHAINS.find(c=>c.id===bridgeFrom)?.label} → {CHAINS.find(c=>c.id===bridgeTo)?.label} · USDC · Powered by Arc App Kit</div>
+                </div>
+              )}
+
+              {tab === 'swap' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU PAY</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <input type="number" value={swapAmount} onChange={e => setSwapAmount(e.target.value)} placeholder="0" className="bg-transparent text-3xl font-bold flex-1 outline-none" />
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-blue-400">●</span><span className="text-sm font-medium">USDC</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-gray-400">⇅</div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">YOU RECEIVE</label>
+                    <div className="flex items-center gap-3 bg-gray-800 rounded-xl p-4">
+                      <span className="text-3xl font-bold flex-1 text-gray-500">{swapAmount || '0'}</span>
+                      <div className="flex items-center gap-2 bg-gray-700 rounded-full px-3 py-1">
+                        <span className="text-yellow-400">●</span><span className="text-sm font-medium">EURC</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Arc Testnet</div>
+                  </div>
+                  {swapAmount && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-2 text-sm">
+                      <div className="flex justify-between text-gray-400"><span>Rate</span><span>1 USDC ≈ 1 EURC</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Slippage</span><span>3%</span></div>
+                      <div className="flex justify-between text-gray-400"><span>Network gas</span><span>~0.009 USDC</span></div>
+                      <div className="flex justify-between font-bold"><span>You receive</span><span>~{swapAmount} EURC</span></div>
+                    </div>
+                  )}
+                  <button onClick={sendSwap} disabled={swapPaying} className="w-full py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {swapPaying ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></span>Swap yapiliyor...</span> : 'Confirm swap'}
+                  </button>
+                  {swapResult && <TxBox result={swapResult} />}
+                  <div className="text-center text-xs text-gray-600">Arc Testnet · USDC → EURC · Slippage 3% · Powered by Arc App Kit</div>
+                </div>
+              )}
+
             </div>
-          )}
-        </div>
-
-        <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
-          {[
-            {id:'shield',label:'🛡 Shield',active:shieldActive,color:'#60a5fa',bg:'#0a1628',border:'#1e3a5f'},
-            {id:'slow',label:'⏰ Slow',active:slowActive,color:'#c9a84c',bg:'#1a1500',border:'#2a2500'},
-            {id:'double',label:'2x USDC',active:doubleActive,color:'#4ade80',bg:'#0a1a0a',border:'#1a3a1a'},
-          ].map(p=>(
-            <div key={p.id} style={{padding:'4px 10px',borderRadius:8,fontSize:10,fontWeight:700,border:`1px solid ${p.border}`,background:p.bg,color:p.color,opacity:p.active?1:.35,transition:'opacity .3s'}}>
-              {p.label}{p.active?' ACTIVE':''}
-            </div>
-          ))}
-          <div style={{marginLeft:'auto',fontSize:10,color:'#333',alignSelf:'center'}}>SPACE / tap to flap</div>
-        </div>
-
-        <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
-          {gameState==='over'&&usdc>0&&(
-            isConnected?(
-              <div style={{flex:1,display:'flex',gap:6}}>
-                <input value={sendTarget} onChange={e=>setSendTarget(e.target.value)} placeholder="Send to address (0x...)"
-                  style={{flex:1,padding:'10px 12px',background:'#0e0e0e',border:'1px solid #1a1a1a',borderRadius:10,fontSize:12,color:'#fff',outline:'none'}}/>
-                <button onClick={sendUsdc} disabled={sending||!sendTarget}
-                  style={{padding:'10px 16px',borderRadius:10,fontSize:12,fontWeight:800,border:'none',cursor:sending||!sendTarget?'default':'pointer',
-                    background:sending||!sendTarget?'#1a1a1a':'linear-gradient(135deg,#c9a84c,#a07830)',
-                    color:sending||!sendTarget?'#444':'#000'}}>
-                  {sending?'Sending...':`Send ${usdc.toFixed(2)} USDC →`}
-                </button>
-              </div>
-            ):(
-              <button onClick={()=>connect({connector:injected()})}
-                style={{flex:1,padding:'10px',background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',borderRadius:10,fontSize:12,fontWeight:800,cursor:'pointer'}}>
-                Connect Wallet to Send {usdc.toFixed(2)} USDC
-              </button>
-            )
-          )}
-          {gameState!=='over'&&(
-            <div style={{flex:1,padding:'10px',background:'#1a1a1a',borderRadius:10,fontSize:12,color:'#444',textAlign:'center'}}>
-              🎮 Play to earn USDC
-            </div>
-          )}
-          <button onClick={shareScore}
-            style={{padding:'10px 14px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:10,fontSize:12,color:'#60a5fa',cursor:'pointer',fontWeight:700}}>
-            𝕏 Share
-          </button>
-          <button onClick={() => { stateRef.current.diff = diff; initGame(diff) }}
-            style={{padding:'10px 14px',background:'#111',border:'1px solid #222',borderRadius:10,fontSize:12,color:'#888',cursor:'pointer'}}>
-            ↺ Retry
-          </button>
-        </div>
-
-        {txHash&&(
-          <div style={{background:'#0e0e0e',border:'1px solid #1a3a1a',borderRadius:10,padding:'10px 14px',marginBottom:10}}>
-            <div style={{fontSize:12,fontWeight:700,color:'#4ade80',marginBottom:4}}>✓ USDC Sent!</div>
-            <a href={`https://testnet.arcscan.app/tx/${txHash}`} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'#c9a84c',textDecoration:'none'}}>
-              View on ArcScan →
-            </a>
           </div>
         )}
 
-        {leaderboard.length>0&&(
-          <div style={{background:'#0e0e0e',border:'1px solid #1a1a1a',borderRadius:14,padding:14}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:'.5px',color:'#444',marginBottom:12}}>🏆 LEADERBOARD</div>
-            {leaderboard.map((r,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:i<leaderboard.length-1?'1px solid #141414':'none'}}>
-                <div style={{width:22,fontSize:11,fontWeight:700,color:i===0?'#c9a84c':'#444'}}>{medals[i]}</div>
-                <div style={{flex:1,fontSize:12,color:'#ccc'}}>{r.name}</div>
-                <div style={{fontSize:12,fontWeight:700,color:'#c9a84c'}}>{r.score} pipes</div>
-                <div style={{fontSize:11,color:'#555',marginLeft:6}}>= {r.usdc.toFixed(2)} USDC</div>
+        {tab === 'batch' && (
+          <div className="flex-1 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Batch Payout</h2>
+              <div className="flex gap-3">
+                <button onClick={downloadTemplate} className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">📥 Sablon</button>
+                <button onClick={() => fileRef.current?.click()} className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">📤 CSV Yukle</button>
+                <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
+                {pendingCount > 0 && (
+                  <button onClick={sendBatch} disabled={batchPaying} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-100 disabled:opacity-50">
+                    {batchPaying ? '⏳ Gonderiliyor...' : `🚀 ${pendingCount} Kisiye Gonder`}
+                  </button>
+                )}
               </div>
-            ))}
+            </div>
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
+              <div className="grid grid-cols-4 gap-3">
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ad Soyad" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600" />
+                <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="0x..." className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 col-span-2" />
+                <div className="flex gap-2">
+                  <input value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="USDC" type="number" className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none placeholder-gray-600 flex-1" />
+                  <button onClick={addRecipient} className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700">+</button>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+              {recipients.length === 0 ? (
+                <div className="p-12 text-center text-gray-600">
+                  <div className="text-4xl mb-3">👥</div>
+                  <p>Henuz alici eklenmedi</p>
+                  <p className="text-sm mt-1">Manuel ekle veya CSV yukle</p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="border-b border-gray-800">
+                    <tr>
+                      <th className="text-left p-4 text-xs text-gray-400">AD</th>
+                      <th className="text-left p-4 text-xs text-gray-400">ADRES</th>
+                      <th className="text-left p-4 text-xs text-gray-400">MIKTAR</th>
+                      <th className="text-left p-4 text-xs text-gray-400">DURUM</th>
+                      <th className="text-left p-4 text-xs text-gray-400">NFT</th>
+                      <th className="text-left p-4 text-xs text-gray-400">TX</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recipients.map(r => (
+                      <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                        <td className="p-4 text-sm font-medium">{r.name}</td>
+                        <td className="p-4 text-sm text-gray-400 font-mono">{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                        <td className="p-4 text-sm font-bold">{r.amount} USDC</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded text-xs ${r.status === 'paid' ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
+                            {r.status === 'paid' ? '✅ Odendi' : '⏳ Bekliyor'}
+                          </span>
+                        </td>
+                        <td className="p-4">{r.nftUrl ? <a href={r.nftUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 text-xs hover:underline">🎨 Gor</a> : <span className="text-gray-600 text-xs">—</span>}</td>
+                        <td className="p-4">{r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline">Explorer</a> : <span className="text-gray-600 text-xs">—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
 
-        <div style={{textAlign:'center',marginTop:12,fontSize:10,color:'#1a1a1a'}}>
-          Arc Global Payouts · Flappy USDC · by GoGo
-        </div>
+        {showSidePanel && (
+          <div className="w-72 border-l border-gray-800 p-5 flex flex-col gap-4">
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-1">USDC BAKIYESI</div>
+              <div className="text-3xl font-bold">${usdcFormatted}</div>
+              <div className="text-xs text-blue-400 mt-1">Arc Testnet · Gercek Bakiye</div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-1">TOPLAM GONDERILEN</div>
+              <div className="text-2xl font-bold">${totalPaid.toFixed(2)}</div>
+              <div className="text-xs text-green-400 mt-1">Bu oturumda</div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-3">HOLDINGS</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-xs font-bold">$</div>
+                  <div><div className="text-sm font-medium">USDC</div><div className="text-xs text-gray-500">Arc Testnet</div></div>
+                </div>
+                <div className="text-sm font-medium">${usdcFormatted}</div>
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="text-xs text-gray-400 mb-3">ARACLAR</div>
+              <div className="flex flex-col gap-2">
+                <a href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-900/30 border border-blue-800/50 rounded-lg hover:bg-blue-900/50 transition-colors">
+                  <span className="text-sm">🚰</span>
+                  <div className="flex-1"><div className="text-xs font-medium text-blue-300">Test USDC Al</div><div className="text-xs text-gray-500">faucet.circle.com</div></div>
+                  <span className="text-blue-600 text-xs">↗</span>
+                </a>
+                <a href="https://thirdweb.com/arc-testnet" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">
+                  <span className="text-sm">⚙️</span>
+                  <div className="flex-1"><div className="text-xs font-medium text-gray-300">Ag Kurulumu</div><div className="text-xs text-gray-500">Arc Testnet ekle</div></div>
+                  <span className="text-gray-600 text-xs">↗</span>
+                </a>
+                <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">
+                  <span className="text-sm">🔍</span>
+                  <div className="flex-1"><div className="text-xs font-medium text-gray-300">ArcScan Explorer</div><div className="text-xs text-gray-500">Islemleri takip et</div></div>
+                  <span className="text-gray-600 text-xs">↗</span>
+                </a>
+              </div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex-1">
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-xs text-gray-400">ACTIVITY</div>
+                <div className="flex gap-2 items-center">
+                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-white">ArcScan</a>
+                  <span className="text-gray-700">·</span>
+                  <Link href="/history" className="text-xs text-gray-500 hover:text-white">All txns</Link>
+                </div>
+              </div>
+              {transactions.length === 0 ? (
+                <div className="text-center text-gray-600 text-sm py-4">Henuz islem yok</div>
+              ) : (
+                <div className="space-y-3">
+                  {transactions.slice(0, 5).map(t => (
+                    <div key={t.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-red-900 rounded-full flex items-center justify-center text-xs">↗</div>
+                        <div>
+                          <div className="text-xs font-medium">{t.name || 'Send USDC'}</div>
+                          <div className="text-xs text-gray-500">confirmed</div>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-red-400">-{t.amount}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
