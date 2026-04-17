@@ -11,6 +11,8 @@ export default function ArcProfile({ params }: { params: Promise<{ handle: strin
   const [walletAddress, setWalletAddress] = useState('')
   const [copied, setCopied] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const cookie = document.cookie.split(';').find(c => c.trim().startsWith('arc_x_user='))
@@ -33,27 +35,32 @@ export default function ArcProfile({ params }: { params: Promise<{ handle: strin
 
   const saveWallet = async () => {
     if (!walletAddress) return
+    setSaving(true)
     try {
       await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handle, address: walletAddress, name: xUser?.name, avatar: xUser?.avatar, username: xUser?.username })
       })
-      // localStorage'a da kaydet (hızlı okuma için)
       const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
       profiles[handle] = { address: walletAddress, name: xUser?.name, avatar: xUser?.avatar, username: xUser?.username }
       localStorage.setItem('arc_profiles', JSON.stringify(profiles))
-      const shareText = `I just created my Arc Payment Profile!\n\nSend me USDC instantly 👇\narc-payouts.vercel.app/u/${handle}\n\n#ArcNetwork #USDC #Web3`
-window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank')
-    } catch (e) {
+      setSaved(true)
+    } catch {
       alert('Error saving profile')
     }
+    setSaving(false)
   }
 
   const copyAddress = () => {
     navigator.clipboard.writeText(walletAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const shareOnX = () => {
+    const text = `I just created my Arc Payment Profile!\n\nSend me USDC instantly 👇\narc-payouts.vercel.app/u/${handle}\n\n#ArcNetwork #USDC #Web3`
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const WavesLogo = () => (
@@ -124,10 +131,7 @@ window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTex
             </Link>
           )}
 
-          <button onClick={() => {
-            const text = `Send me USDC instantly on Arc Network!\n\narc-payouts.vercel.app/u/${handle}\n\n#ArcNetwork #USDC`
-            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank')
-          }} style={{ width: '100%', padding: '10px', background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: 12, color: '#60a5fa', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <button onClick={shareOnX} style={{ width: '100%', padding: '10px', background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: 12, color: '#60a5fa', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
             Share on X
           </button>
@@ -137,11 +141,25 @@ window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTex
           <div style={{ background: '#0e0e0e', border: '1px solid #c9a84c33', borderRadius: 20, padding: 24 }}>
             <div style={{ fontSize: 11, color: '#c9a84c', fontWeight: 700, letterSpacing: '.4px', marginBottom: 16 }}>⚙ YOUR PROFILE SETTINGS</div>
             <div style={{ fontSize: 11, color: '#555', marginBottom: 8 }}>WALLET ADDRESS</div>
-            <input value={walletAddress} onChange={e => setWalletAddress(e.target.value)} placeholder="0x... your wallet address"
+            <input value={walletAddress} onChange={e => { setWalletAddress(e.target.value); setSaved(false) }} placeholder="0x... your wallet address"
               style={{ width: '100%', padding: '12px 14px', background: '#080808', border: '1px solid #1a1a1a', borderRadius: 12, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 12, boxSizing: 'border-box' }} />
-            <button onClick={saveWallet} style={{ width: '100%', padding: 13, background: 'linear-gradient(135deg,#c9a84c,#a07830)', color: '#000', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-              Save Profile
+
+            <button onClick={saveWallet} disabled={saving}
+              style={{ width: '100%', padding: 13, background: saving ? '#333' : 'linear-gradient(135deg,#c9a84c,#a07830)', color: saving ? '#666' : '#000', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 800, cursor: saving ? 'default' : 'pointer', marginBottom: saved ? 12 : 0 }}>
+              {saving ? 'Saving...' : 'Save Profile'}
             </button>
+
+            {saved && (
+              <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 700, marginBottom: 8 }}>✓ Profile saved!</div>
+                <div style={{ fontSize: 11, color: '#555', marginBottom: 12 }}>Share your payment link with friends</div>
+                <button onClick={shareOnX}
+                  style={{ width: '100%', padding: '10px', background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: 10, color: '#60a5fa', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  Share on X
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
