@@ -8,13 +8,8 @@ export async function GET(request: NextRequest) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://arc-payouts.vercel.app'
 
-  if (error) {
-    return NextResponse.redirect(`${appUrl}?auth_error=${error}`)
-  }
-
-  if (!code) {
-    return NextResponse.redirect(`${appUrl}?auth_error=no_code`)
-  }
+  if (error) return NextResponse.redirect(`${appUrl}?auth_error=${error}`)
+  if (!code) return NextResponse.redirect(`${appUrl}?auth_error=no_code`)
 
   try {
     const clientId = process.env.TWITTER_CLIENT_ID!
@@ -24,43 +19,50 @@ export async function GET(request: NextRequest) {
     let codeVerifier = ''
     if (state) {
       try {
-        const decoded = Buffer.from(state, 'base64').toString('utf-8')
+        const decoded = Buffer.from(state, 'base64url').toString('utf-8')
         codeVerifier = decoded.split(':')[0]
       } catch {
-        codeVerifier = ''
+        try {
+          const decoded = Buffer.from(state, 'base64').toString('utf-8')
+          codeVerifier = decoded.split(':')[0]
+        } catch {
+          codeVerifier = ''
+        }
       }
     }
+
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+
+    const body = new URLSearchParams({
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier || 'challenge',
+    })
 
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        'Authorization': `Basic ${basicAuth}`,
       },
-      body: new URLSearchParams({
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier || 'challenge',
-      }),
+      body: body.toString(),
     })
 
+    const tokenText = await tokenResponse.text()
+    console.log('Token response:', tokenText)
+
     if (!tokenResponse.ok) {
-      const errText = await tokenResponse.text()
-      console.error('Token error:', errText)
+      console.error('Token error:', tokenText)
       return NextResponse.redirect(`${appUrl}?auth_error=token_failed`)
     }
 
-    const tokenData = await tokenResponse.json()
+    const tokenData = JSON.parse(tokenText)
     const accessToken = tokenData.access_token
 
     const userResponse = await fetch(
       'https://api.twitter.com/2/users/me?user.fields=username,name,profile_image_url',
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${accessToken}` } }
     )
 
     if (!userResponse.ok) {
