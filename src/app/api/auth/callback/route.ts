@@ -49,7 +49,24 @@ export async function GET(request: NextRequest) {
 
     const userData = await userResponse.json()
     const user = userData.data
-
+    // Redis'e profil kaydet (address olmadan)
+    try {
+      const { Redis } = await import('@upstash/redis')
+      const redis = Redis.fromEnv()
+      const cleanHandle = user.username.toLowerCase()
+      const existing = await redis.get(`profile:${cleanHandle}`) as any
+      const profile = {
+        handle: cleanHandle,
+        address: existing?.address || '',
+        name: user.name,
+        avatar: user.profile_image_url?.replace('_normal', '_bigger') || '',
+        username: user.username,
+        updatedAt: new Date().toISOString(),
+      }
+      await redis.set(`profile:${cleanHandle}`, JSON.stringify(profile))
+    } catch (e) {
+      console.error('Redis save error:', e)
+    }
     // Profil sayfasına yönlendir
     const response = NextResponse.redirect(`${appUrl}/u/${user.username.toLowerCase()}`)
 

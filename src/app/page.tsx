@@ -112,6 +112,19 @@ export default function Home() {
   const navBg = D ? '#0a0a0a' : '#ffffff'
 
   useEffect(() => {
+    if (isConnected && address && xUser) {
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handle: xUser.username.toLowerCase(),
+          address,
+          name: xUser.name,
+          avatar: xUser.avatar,
+          username: xUser.username,
+        })
+      }).catch(() => {})
+    }
     const favs = localStorage.getItem('arc_favorites')
     if (favs) setFavorites(JSON.parse(favs))
     const txs = localStorage.getItem('arc_transactions')
@@ -126,7 +139,7 @@ export default function Home() {
     fetchLiveTxs()
     const interval = setInterval(fetchLiveTxs, 10000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isConnected, address, xUser])
 
   const fetchLiveTxs = async () => {
     try {

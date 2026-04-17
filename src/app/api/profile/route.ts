@@ -20,11 +20,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { handle, address, name, avatar, username } = body
 
-    if (!handle || !address) return NextResponse.json({ error: 'Handle and address required' }, { status: 400 })
-
+if (!handle) return NextResponse.json({ error: 'Handle required' }, { status: 400 })
     const cleanHandle = handle.toLowerCase().replace('@', '')
 
-    const profile = { handle: cleanHandle, address, name: name || cleanHandle, avatar: avatar || '', username: username || cleanHandle, updatedAt: new Date().toISOString() }
+    const existing = await redis.get(`profile:${cleanHandle}`) as any
+const profile = {
+  handle: cleanHandle,
+  address: address || existing?.address || '',
+  name: name || existing?.name || cleanHandle,
+  avatar: avatar || existing?.avatar || '',
+  username: username || existing?.username || cleanHandle,
+  updatedAt: new Date().toISOString(),
+}
 
     await redis.set(`profile:${cleanHandle}`, JSON.stringify(profile))
 
