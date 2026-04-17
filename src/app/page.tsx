@@ -27,12 +27,12 @@ const RATES: Record<string,Record<string,number>> = {
 }
 
 const FEATURES = [
-  { href:'/game', label:'Tetris', short:'T', color:'#c9a84c', bg:'#1a1500', dark:'#2a2000', border:'#c9a84c44' },
-  { href:'/ai', label:'AI', short:'AI', color:'#60a5fa', bg:'#0a1628', dark:'#0d2040', border:'#60a5fa33' },
-  { href:'/pay/gogo', label:'Pay Link', short:'P', color:'#4ade80', bg:'#0a1a0a', dark:'#0d280d', border:'#1a3a1a' },
-  { href:'/contacts', label:'Contacts', short:'C', color:'#a78bfa', bg:'#1a0a2a', dark:'#1a0a2a', border:'#2a1a3a' },
-  { href:'/schedule', label:'Schedule', short:'Sc', color:'#f59e0b', bg:'#1a1000', dark:'#1a1000', border:'#2a2000' },
-  { href:'/split', label:'Split', short:'Sp', color:'#f87171', bg:'#1a0a0a', dark:'#1a0a0a', border:'#2a1a1a' },
+  { href:'/game', label:'Tetris', short:'T', color:'#c9a84c', bg:'#1a1500', dark:'#2a2000', border:'#c9a84c44', lightBg:'#fef9ec', lightBorder:'#f0d080' },
+  { href:'/ai', label:'AI', short:'AI', color:'#2563eb', bg:'#0a1628', dark:'#0d2040', border:'#60a5fa33', lightBg:'#eff6ff', lightBorder:'#bfdbfe' },
+  { href:'/pay/gogo', label:'Pay Link', short:'P', color:'#16a34a', bg:'#0a1a0a', dark:'#0d280d', border:'#1a3a1a', lightBg:'#f0fdf4', lightBorder:'#bbf7d0' },
+  { href:'/contacts', label:'Contacts', short:'C', color:'#7c3aed', bg:'#1a0a2a', dark:'#1a0a2a', border:'#2a1a3a', lightBg:'#faf5ff', lightBorder:'#ddd6fe' },
+  { href:'/schedule', label:'Schedule', short:'Sc', color:'#d97706', bg:'#1a1000', dark:'#1a1000', border:'#2a2000', lightBg:'#fffbeb', lightBorder:'#fde68a' },
+  { href:'/split', label:'Split', short:'Sp', color:'#dc2626', bg:'#1a0a0a', dark:'#1a0a0a', border:'#2a1a1a', lightBg:'#fef2f2', lightBorder:'#fecaca' },
 ]
 
 const GLOBAL_CSS = `
@@ -791,8 +791,8 @@ export default function Home() {
               <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>FEATURES</div>
               <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                 {FEATURES.map(f => (
-                  <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', background:f.bg, border:`1px solid ${f.border}`, borderRadius:8, textDecoration:'none' }}>
-                    <SweepIcon short={f.short} color={f.color} bg={f.bg} dark={f.dark} size={20}/>
+                  <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', background:D?f.bg:(f as any).lightBg||f.bg, border:`1px solid ${D?f.border:(f as any).lightBorder||f.border}`, borderRadius:8, textDecoration:'none' }}>
+                    <SweepIcon short={f.short} color={f.color} bg={D?f.bg:(f as any).lightBg||f.bg} dark={f.dark} size={20}/>
                     <span style={{ fontSize:11, fontWeight:600, color:f.color }}>{f.label}</span>
                     <span style={{ marginLeft:'auto', fontSize:10, color:muted }}>↗</span>
                   </Link>
