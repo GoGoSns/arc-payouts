@@ -90,21 +90,15 @@ Features: Send USDC, Bridge (ETH/ARB/OP/Base→Arc), Swap (USDC↔EURC↔ETH), B
 Be friendly and concise. Under 80 words.
 If user wants to send crypto, end with: ACTION:{"type":"send","amount":"X","to":"address","token":"USDC"}`
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
           messages: [
             { role: 'system', content: systemPrompt },
             ...messages.filter(m => m.id !== '1').map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: text },
           ],
-          max_tokens: 200,
-          temperature: 0.7,
         }),
       })
 
