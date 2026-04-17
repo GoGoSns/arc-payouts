@@ -805,6 +805,26 @@ export default function Home() {
 
             <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
               <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:8}}>FEATURES</div>
+              {xUser?(
+                <a href={`/u/${xUser.username.toLowerCase()}`}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',background:'linear-gradient(135deg,#1a1500,#0a0a00)',border:'1px solid #c9a84c55',borderRadius:10,textDecoration:'none',marginBottom:6}}>
+                  {xUser.avatar&&<img src={xUser.avatar} alt="" style={{width:20,height:20,borderRadius:'50%',border:'1px solid #c9a84c44'}}/>}
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:'#c9a84c'}}>My Arc Profile</div>
+                    <div style={{fontSize:9,color:'#555'}}>arc-payouts.vercel.app/u/{xUser.username.toLowerCase()}</div>
+                  </div>
+                  <span style={{fontSize:10,color:'#c9a84c'}}>↗</span>
+                </a>
+              ):(
+                <a href="/api/auth"
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:10,textDecoration:'none',marginBottom:6}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:'#60a5fa'}}>Create My Profile</div>
+                    <div style={{fontSize:9,color:'#555'}}>Login with X to get your link</div>
+                  </div>
+                </a>
+              )}
               <div style={{display:'flex',flexDirection:'column',gap:5}}>
                 {QUICK_LINKS.map(l=>(
                   <Link key={l.href} href={l.href}
