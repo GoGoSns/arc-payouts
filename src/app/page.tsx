@@ -1,23 +1,25 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
 import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
 import { injected } from 'wagmi/connectors'
-import { uploadImageToIPFS } from '@/lib/pinata'
+import { uploadImageToIPFS, uploadNFTMetadata } from '@/lib/pinata'
 
-interface Recipient { id:string; name:string; address:string; amount:string; status:'pending'|'paid'; txHash?:string }
-interface Toast { id:string; type:'success'|'error'|'loading'; message:string }
-interface LiveTx { id:string; handle:string; to:string; amount:string; type:string; time:string }
-type Tab = 'send'|'batch'|'nft'|'bridge'|'swap'
+interface Recipient {
+  id: string; name: string; address: string; amount: string
+  status: 'pending' | 'paid'; txHash?: string
+}
+interface Toast { id: string; type: 'success' | 'error' | 'loading'; message: string }
+type Tab = 'send' | 'batch' | 'nft' | 'bridge' | 'swap'
 
 const CHAINS = [
   { id:'Ethereum_Sepolia', label:'ETH Sepolia', color:'#60a5fa' },
   { id:'Arbitrum_Sepolia', label:'ARB Sepolia', color:'#22d3ee' },
-  { id:'Optimism_Sepolia', label:'OP Sepolia', color:'#f87171' },
-  { id:'Base_Sepolia', label:'Base Sepolia', color:'#818cf8' },
-  { id:'Arc_Testnet', label:'Arc Testnet', color:'#4ade80' },
+  { id:'Optimism_Sepolia', label:'OP Sepolia',  color:'#f87171' },
+  { id:'Base_Sepolia',     label:'Base Sepolia', color:'#818cf8' },
+  { id:'Arc_Testnet',      label:'Arc Testnet',  color:'#4ade80' },
 ]
 const TOKENS = ['USDC','EURC','ETH']
 const RATES: Record<string,Record<string,number>> = {
@@ -25,41 +27,21 @@ const RATES: Record<string,Record<string,number>> = {
   EURC:{ USDC:1.087, ETH:0.00041, EURC:1 },
   ETH:{ USDC:2630, EURC:2420, ETH:1 },
 }
-
-const FEATURES = [
-  { href:'/game', label:'Tetris', short:'T', color:'#c9a84c', bg:'#1a1500', dark:'#2a2000', border:'#c9a84c44', lightBg:'#fef9ec', lightBorder:'#f0d080' },
-  { href:'/ai', label:'AI', short:'AI', color:'#2563eb', bg:'#0a1628', dark:'#0d2040', border:'#60a5fa33', lightBg:'#eff6ff', lightBorder:'#bfdbfe' },
-  { href:'/pay/gogo', label:'Pay Link', short:'P', color:'#16a34a', bg:'#0a1a0a', dark:'#0d280d', border:'#1a3a1a', lightBg:'#f0fdf4', lightBorder:'#bbf7d0' },
-  { href:'/contacts', label:'Contacts', short:'C', color:'#7c3aed', bg:'#1a0a2a', dark:'#1a0a2a', border:'#2a1a3a', lightBg:'#faf5ff', lightBorder:'#ddd6fe' },
-  { href:'/schedule', label:'Schedule', short:'Sc', color:'#d97706', bg:'#1a1000', dark:'#1a1000', border:'#2a2000', lightBg:'#fffbeb', lightBorder:'#fde68a' },
-  { href:'/split', label:'Split', short:'Sp', color:'#dc2626', bg:'#1a0a0a', dark:'#1a0a0a', border:'#2a1a1a', lightBg:'#fef2f2', lightBorder:'#fecaca' },
+const TAB_CONFIG = [
+  { id:'send',   label:'Send',        short:'S'  },
+  { id:'batch',  label:'Batch',       short:'B'  },
+  { id:'nft',    label:'NFT Receipt', short:'N'  },
+  { id:'bridge', label:'Bridge',      short:'Br' },
+  { id:'swap',   label:'Swap',        short:'Sw' },
 ]
-
-const GLOBAL_CSS = `
-@keyframes sweep{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@keyframes glow{0%,100%{opacity:.8}50%{opacity:1}}
-@keyframes breathe{0%,100%{box-shadow:0 0 0 2px #c9a84c33}50%{box-shadow:0 0 0 4px #c9a84c88,0 0 20px #c9a84c22}}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes gridGlow{0%,100%{opacity:.25}50%{opacity:.4}}
-`
-
-function SweepIcon({ short, color, bg, dark, size=22 }: { short:string; color:string; bg:string; dark:string; size?:number }) {
-  const r = Math.round(size * 0.27)
-  return (
-    <span style={{ position:'relative', width:size, height:size, borderRadius:r, overflow:'hidden', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-      <span style={{ position:'absolute', inset:-4, background:`conic-gradient(transparent 0deg,${color} 55deg,transparent 110deg)`, animation:'sweep 2.5s linear infinite' }}/>
-      <span style={{ position:'absolute', inset:1.5, background:dark, borderRadius:r-2, display:'flex', alignItems:'center', justifyContent:'center', zIndex:1, fontSize:size<20?7:9, fontWeight:800, color }}>{short}</span>
-    </span>
-  )
-}
-
-function Spinner() {
-  return <span style={{ display:'inline-block', width:13, height:13, border:'2px solid #333', borderTopColor:'#c9a84c', borderRadius:'50%', animation:'spin .7s linear infinite' }}/>
-}
+const QUICK_LINKS = [
+  { href:'/game',     label:'USDC Tetris',  emoji:'🎮', color:'#c9a84c', bg:'#1a1500', border:'#2a2500' },
+  { href:'/ai',       label:'AI Assistant', emoji:'🤖', color:'#60a5fa', bg:'#0a1628', border:'#1e3a5f' },
+  { href:'/pay/gogo', label:'Payment Link', emoji:'🔗', color:'#4ade80', bg:'#0a1a0a', border:'#1a3a1a' },
+  { href:'/contacts', label:'Contacts',     emoji:'👥', color:'#a78bfa', bg:'#1a0a2a', border:'#2a1a3a' },
+  { href:'/schedule', label:'Schedule',     emoji:'⏰', color:'#f59e0b', bg:'#1a1000', border:'#2a2000' },
+  { href:'/split',    label:'Split',        emoji:'🍽️', color:'#f87171', bg:'#1a0a0a', border:'#2a1a1a' },
+]
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -69,6 +51,7 @@ export default function Home() {
 
   const [darkMode, setDarkMode] = useState(true)
   const [tab, setTab] = useState<Tab>('send')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [newName, setNewName] = useState('')
@@ -78,9 +61,17 @@ export default function Home() {
   const [singleAmount, setSingleAmount] = useState('')
   const [paying, setPaying] = useState(false)
   const [batchPaying, setBatchPaying] = useState(false)
+  const [nftImageUrl, setNftImageUrl] = useState('')
+  const [nftImagePreview, setNftImagePreview] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [transactions, setTransactions] = useState<any[]>([])
   const [txResult, setTxResult] = useState<{txHash:string,explorerUrl?:string}|null>(null)
+  const [showQR, setShowQR] = useState(false)
   const [favorites, setFavorites] = useState<{name:string,address:string}[]>([])
+  const [showFavInput, setShowFavInput] = useState(false)
+  const [favName, setFavName] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const nftImageRef = useRef<HTMLInputElement>(null)
   const [bridgeAmount, setBridgeAmount] = useState('')
   const [bridgePaying, setBridgePaying] = useState(false)
   const [bridgeResult, setBridgeResult] = useState<{txHash:string,explorerUrl?:string}|null>(null)
@@ -92,43 +83,10 @@ export default function Home() {
   const [swapSlippage, setSwapSlippage] = useState('1')
   const [swapPaying, setSwapPaying] = useState(false)
   const [swapResult, setSwapResult] = useState<{txHash:string,explorerUrl?:string}|null>(null)
-  const [nftImageUrl, setNftImageUrl] = useState('')
-  const [nftImagePreview, setNftImagePreview] = useState('')
-  const [uploadingImage, setUploadingImage] = useState(false)
-  const [liveTxs, setLiveTxs] = useState<LiveTx[]>([])
+  const [showHelp, setShowHelp] = useState(false)
   const [xUser, setXUser] = useState<{id:string,username:string,name:string,avatar:string}|null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const nftImageRef = useRef<HTMLInputElement>(null)
-
-  const D = darkMode
-  const bg = D ? '#0a0a0a' : '#f5f5f5'
-  const card = D ? '#0e0e0e' : '#ffffff'
-  const border = D ? '#1a1a1a' : '#e0e0e0'
-  const text = D ? '#ffffff' : '#111111'
-  const muted = D ? '#444444' : '#888888'
-  const subtle = D ? '#333333' : '#bbbbbb'
-  const field = D ? '#080808' : '#f8f8f8'
-  const fieldBorder = D ? '#181818' : '#e8e8e8'
-  const navBg = D ? '#0a0a0a' : '#ffffff'
 
   useEffect(() => {
-    if (isConnected && address && xUser) {
-      fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handle: xUser.username.toLowerCase(),
-          address,
-          name: xUser.name,
-          avatar: xUser.avatar,
-          username: xUser.username,
-        })
-      }).catch(() => {})
-    }
-    const favs = localStorage.getItem('arc_favorites')
-    if (favs) setFavorites(JSON.parse(favs))
-    const txs = localStorage.getItem('arc_transactions')
-    if (txs) setTransactions(JSON.parse(txs))
     const cookie = document.cookie.split(';').find(c => c.trim().startsWith('arc_x_user='))
     if (cookie) {
       try {
@@ -136,25 +94,34 @@ export default function Home() {
         setXUser(JSON.parse(val))
       } catch {}
     }
-    fetchLiveTxs()
-    const interval = setInterval(fetchLiveTxs, 10000)
-    return () => clearInterval(interval)
-  }, [isConnected, address])
+  }, [])
 
-  const fetchLiveTxs = async () => {
-    try {
-      const res = await fetch('/api/live-txs')
-      if (res.ok) {
-        const data = await res.json()
-        setLiveTxs(data.txs || [])
-      }
-    } catch {}
-  }
+  const D = darkMode
+  const bg = D?'#080808':'#f8f9fa'
+  const card = D?'#0e0e0e':'#ffffff'
+  const border = D?'#1a1a1a':'#e8e8e8'
+  const text = D?'#ffffff':'#000000'
+  const muted = D?'#444444':'#999999'
+  const subtle = D?'#333333':'#bbbbbb'
+  const field = D?'#080808':'#f5f5f5'
+  const fieldBorder = D?'#181818':'#e0e0e0'
 
+  useEffect(() => {
+    const favs = localStorage.getItem('arc_favorites')
+    if (favs) setFavorites(JSON.parse(favs))
+    const txs = localStorage.getItem('arc_transactions')
+    if (txs) setTransactions(JSON.parse(txs))
+  }, [])
+
+  const connectWallet = () => connect({ connector: injected() })
+  const flipBridge = () => { const t=bridgeFrom; setBridgeFrom(bridgeTo); setBridgeTo(t) }
+  const flipSwap = () => { const t=swapTokenIn; setSwapTokenIn(swapTokenOut); setSwapTokenOut(t) }
+  const swapAmountOut = swapAmountIn ? (parseFloat(swapAmountIn)*(RATES[swapTokenIn]?.[swapTokenOut]||1)).toFixed(4) : '0'
+  const priceImpactHigh = parseFloat(swapAmountIn) > 1000
   const balanceFormatted = balanceLoading ? null : usdcBalance ? (Number(usdcBalance.value)/1e18).toFixed(2) : '0.00'
   const totalPaid = transactions.reduce((s,t) => s+parseFloat(t.amount||'0'), 0)
   const pendingCount = recipients.filter(r => r.status==='pending').length
-  const swapAmountOut = swapAmountIn ? (parseFloat(swapAmountIn)*(RATES[swapTokenIn]?.[swapTokenOut]||1)).toFixed(4) : '0'
+  const showSidePanel = tab==='send'||tab==='nft'||tab==='bridge'||tab==='swap'
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = Math.random().toString(36).slice(2)
@@ -164,25 +131,12 @@ export default function Home() {
   }, [])
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id!==id))
 
-  const saveTransaction = async (name:string, addr:string, amount:string, txHash:string, explorerUrl?:string, type='Send') => {
-    const tx = { id:Math.random().toString(36).slice(2), name, address:addr, amount, txHash, explorerUrl, timestamp:new Date().toISOString() }
+  const saveTransaction = (name:string,addr:string,amount:string,txHash:string,explorerUrl?:string) => {
+    const tx = {id:Math.random().toString(36).slice(2),name,address:addr,amount,txHash,explorerUrl,timestamp:new Date().toISOString()}
     setTransactions(prev => [tx,...prev])
     const stored = localStorage.getItem('arc_transactions')
     const existing = stored ? JSON.parse(stored) : []
     localStorage.setItem('arc_transactions', JSON.stringify([tx,...existing]))
-    // Redis'e kaydet (live feed için)
-    try {
-      await fetch('/api/live-txs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handle: xUser?.username || addr.slice(0,6),
-          to: addr,
-          amount,
-          type,
-        })
-      })
-    } catch {}
   }
 
   const sendSingle = async () => {
@@ -196,7 +150,7 @@ export default function Home() {
       const adapter = await createViemAdapterFromProvider({provider:(window as any).ethereum})
       const res = await kit.send({from:{adapter,chain:'Arc_Testnet' as never},to:singleAddress,amount:singleAmount,token:'USDC'})
       const txHash = (res as any)?.hash||(res as any)?.txHash||''
-      await saveTransaction('Payment',singleAddress,singleAmount,txHash,`https://testnet.arcscan.app/tx/${txHash}`)
+      saveTransaction('Payment',singleAddress,singleAmount,txHash,`https://testnet.arcscan.app/tx/${txHash}`)
       setTxResult({txHash,explorerUrl:`https://testnet.arcscan.app/tx/${txHash}`})
       setSingleAddress(''); setSingleAmount('')
       removeToast(tid); addToast('success',`Sent ${singleAmount} USDC!`)
@@ -215,7 +169,7 @@ export default function Home() {
       const adapter = await createViemAdapterFromProvider({provider:(window as any).ethereum})
       const res = await kit.bridge({from:{adapter,chain:bridgeFrom as never},to:{adapter,chain:bridgeTo as never},amount:bridgeAmount,token:'USDC'})
       const txHash = (res as any)?.hash||(res as any)?.txHash||''
-      await saveTransaction('Bridge',address||'',bridgeAmount,txHash,`https://testnet.arcscan.app/tx/${txHash}`,'Bridge')
+      saveTransaction(`Bridge`,address||'',bridgeAmount,txHash,`https://testnet.arcscan.app/tx/${txHash}`)
       setBridgeResult({txHash,explorerUrl:`https://testnet.arcscan.app/tx/${txHash}`})
       setBridgeAmount('')
       removeToast(tid); addToast('success',`Bridged ${bridgeAmount} USDC!`)
@@ -226,18 +180,18 @@ export default function Home() {
   const sendSwap = async () => {
     if (!swapAmountIn) { addToast('error','Please enter amount'); return }
     setSwapPaying(true); setSwapResult(null)
-    const tid = addToast('loading','Swapping...')
+    const tid = addToast('loading',`Swapping...`)
     try {
       const {AppKit} = await import('@circle-fin/app-kit')
       const {createViemAdapterFromProvider} = await import('@circle-fin/adapter-viem-v2')
       const kit = new AppKit()
       const adapter = await createViemAdapterFromProvider({provider:(window as any).ethereum})
-      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn as any,config:{kitKey:process.env.NEXT_PUBLIC_CIRCLE_KIT_KEY||'',slippageBps:Math.round(parseFloat(swapSlippage)*100)} as any})
+      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn,config:{slippageBps:Math.round(parseFloat(swapSlippage)*100)}})
       const txHash = (res as any)?.hash||(res as any)?.txHash||''
-      await saveTransaction(`Swap ${swapTokenIn}→${swapTokenOut}`,address||'',swapAmountIn,txHash,`https://testnet.arcscan.app/tx/${txHash}`,'Swap')
+      saveTransaction(`Swap ${swapTokenIn}→${swapTokenOut}`,address||'',swapAmountIn,txHash,`https://testnet.arcscan.app/tx/${txHash}`)
       setSwapResult({txHash,explorerUrl:`https://testnet.arcscan.app/tx/${txHash}`})
       setSwapAmountIn('')
-      removeToast(tid); addToast('success','Swapped!')
+      removeToast(tid); addToast('success',`Swapped!`)
     } catch(e:any) { removeToast(tid); addToast('error','Swap failed: '+e.message) }
     setSwapPaying(false)
   }
@@ -246,6 +200,17 @@ export default function Home() {
     if (!newName||!newAddress||!newAmount) { addToast('error','Fill all fields'); return }
     setRecipients([...recipients,{id:Math.random().toString(36).slice(2),name:newName,address:newAddress,amount:newAmount,status:'pending'}])
     setNewName(''); setNewAddress(''); setNewAmount('')
+  }
+
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return
+    Papa.parse(file,{header:true,complete:(results)=>{
+      const imported = (results.data as any[]).filter(r=>r.address&&r.amount).map(r=>({
+        id:Math.random().toString(36).slice(2),name:r.name||'Unknown',address:r.address,amount:r.amount,status:'pending' as const
+      }))
+      setRecipients(prev=>[...prev,...imported])
+      addToast('success',`${imported.length} imported!`)
+    }})
   }
 
   const sendBatch = async () => {
@@ -262,10 +227,10 @@ export default function Home() {
       try {
         const res = await kit.send({from:{adapter,chain:'Arc_Testnet' as never},to:r.address,amount:r.amount,token:'USDC'})
         const txHash = (res as any)?.hash||''
-        await saveTransaction(r.name,r.address,r.amount,txHash,undefined,'Batch')
+        saveTransaction(r.name,r.address,r.amount,txHash)
         setRecipients(prev=>prev.map(x=>x.id===r.id?{...x,status:'paid',txHash}:x))
         success++
-      } catch {}
+      } catch(e) {}
     }
     addToast('success',`${success}/${pending.length} sent!`)
     setBatchPaying(false)
@@ -280,19 +245,8 @@ export default function Home() {
       const url = await uploadImageToIPFS(file)
       setNftImageUrl(url)
       removeToast(tid); addToast('success','Uploaded!')
-    } catch { removeToast(tid); addToast('error','Upload failed') }
+    } catch(e:any) { removeToast(tid); addToast('error','Upload failed') }
     setUploadingImage(false)
-  }
-
-  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return
-    Papa.parse(file,{header:true,complete:(results)=>{
-      const imported = (results.data as any[]).filter(r=>r.address&&r.amount).map(r=>({
-        id:Math.random().toString(36).slice(2),name:r.name||'Unknown',address:r.address,amount:r.amount,status:'pending' as const
-      }))
-      setRecipients(prev=>[...prev,...imported])
-      addToast('success',`${imported.length} imported!`)
-    }})
   }
 
   const downloadTemplate = () => {
@@ -302,9 +256,35 @@ export default function Home() {
     const a = document.createElement('a'); a.href=url; a.download='template.csv'; a.click()
   }
 
+  const shareOnTwitter = (txHash:string,amount:string,token:string) => {
+    const t = `Just sent ${amount} ${token} on Arc Network! ⚡\n\nTx: https://testnet.arcscan.app/tx/${txHash}\n\n#ArcNetwork #USDC`
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}`,'_blank')
+  }
+
+  const addFavorite = () => {
+    if (!favName||!singleAddress) return
+    const updated = [...favorites,{name:favName,address:singleAddress}]
+    setFavorites(updated)
+    localStorage.setItem('arc_favorites',JSON.stringify(updated))
+    setFavName(''); setShowFavInput(false)
+    addToast('success','Saved!')
+  }
+
+  const Spinner = () => (
+    <span style={{display:'inline-block',width:14,height:14,border:'2px solid #333',borderTopColor:'#c9a84c',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
+  )
+
   const TxBox = ({result,amount,token}:{result:{txHash:string,explorerUrl?:string},amount?:string,token?:string}) => (
-    <div style={{borderRadius:12,padding:12,background:'#0a1a0a',border:'1px solid #1a3a1a',marginTop:10}}>
-      <div style={{fontSize:12,color:'#4ade80',fontWeight:700,marginBottom:4}}>✓ Confirmed</div>
+    <div style={{borderRadius:12,padding:14,background:D?'#0a1a0a':'#f0faf5',borderLeft:'3px solid #c9a84c'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+        <span style={{fontSize:12,fontWeight:700,color:'#c9a84c'}}>✓ Confirmed</span>
+        {amount&&token&&(
+          <button onClick={()=>shareOnTwitter(result.txHash,amount,token)}
+            style={{fontSize:10,padding:'3px 8px',borderRadius:6,border:'1px solid #1e3a5f',color:'#60a5fa',background:'#0a1628',cursor:'pointer'}}>
+            𝕏 Share
+          </button>
+        )}
+      </div>
       <p style={{fontSize:11,color:muted,fontFamily:'monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{result.txHash}</p>
       {result.explorerUrl&&<a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'#c9a84c',textDecoration:'none',marginTop:4,display:'block'}}>View on ArcScan →</a>}
     </div>
@@ -318,540 +298,602 @@ export default function Home() {
     </svg>
   )
 
-  // ============ LOGIN SAYFASI ============
+  const TabIcon = ({short,active}:{short:string,active:boolean}) => (
+    <span style={{position:'relative',width:16,height:16,border:`1px solid ${active?'#c9a84c44':border}`,borderRadius:3,display:'inline-flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,fontSize:7,fontWeight:800,color:active?'#c9a84c':muted,transition:'all .3s'}}>
+      {active&&<span style={{position:'absolute',width:'200%',height:'200%',top:'-50%',left:'-50%',background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)',animation:'tabSweep 2s linear infinite'}}/>}
+      <span style={{position:'absolute',inset:1,background:D?'#080808':'#ffffff',borderRadius:2,zIndex:1}}/>
+      <span style={{position:'relative',zIndex:2}}>{short}</span>
+    </span>
+  )
+
   if (!isConnected) {
-    const tickerItems = liveTxs.length > 0 ? liveTxs : [
-      { id:'1', handle:'GoGo', to:'0x1234', amount:'50', type:'Send', time:'2s' },
-      { id:'2', handle:'alice', to:'0x5678', amount:'1000', type:'Bridge', time:'14s' },
-      { id:'3', handle:'crypto_joe', to:'batch', amount:'5400', type:'Batch', time:'1m' },
-      { id:'4', handle:'defi_sara', to:'EURC', amount:'800', type:'Swap', time:'2m' },
-    ]
-
     return (
-      <div style={{ minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
-        <style>{GLOBAL_CSS}</style>
-
-        {/* Grid bg */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(#151515 1px,transparent 1px),linear-gradient(90deg,#151515 1px,transparent 1px)', backgroundSize:'44px 44px', opacity:.35, pointerEvents:'none', animation:'gridGlow 6s ease infinite' }}/>
-        {/* Center glow */}
-        <div style={{ position:'absolute', top:'42%', left:'50%', transform:'translate(-50%,-50%)', width:600, height:600, background:'radial-gradient(circle,#c9a84c08 0%,transparent 65%)', pointerEvents:'none', animation:'glow 5s ease infinite' }}/>
-
-        {/* NAV */}
-        <nav style={{ borderBottom:'1px solid #141414', padding:'13px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:10 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:34, height:34, background:'#111', border:'1px solid #1e1e1e', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <WavesLogo size={20}/>
+      <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'#080808'}}>
+        <style>{`@keyframes tabSweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes sweepAnim{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
+        <nav style={{borderBottom:'1px solid #141414',padding:'14px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:34,height:34,background:'#111',border:'1px solid #1e1e1e',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <WavesLogo size={18}/>
             </div>
             <div>
-              <div style={{ fontWeight:700, fontSize:13 }}>Arc Global Payouts</div>
-              <div style={{ fontSize:8, color:'#c9a84c', fontWeight:700, letterSpacing:1 }}>ARC NETWORK · by GoGo</div>
+              <div style={{fontWeight:700,fontSize:14,color:'#fff'}}>Arc Global Payouts</div>
+              <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,letterSpacing:'.8px'}}>ARC NETWORK <span style={{color:'#444'}}>· by GoGo</span></div>
             </div>
           </div>
-          <a href="https://github.com/GoGoSns/arc-payouts" target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#333', padding:'5px 12px', background:'#111', border:'1px solid #1a1a1a', borderRadius:8, textDecoration:'none' }}>GitHub ↗</a>
+          <a href="https://github.com/GoGoSns/arc-payouts" target="_blank" rel="noopener noreferrer"
+            style={{fontSize:11,padding:'5px 12px',background:'#111',border:'1px solid #1e1e1e',borderRadius:8,color:'#888',textDecoration:'none'}}>GitHub ↗</a>
         </nav>
-
-        {/* LIVE TICKER */}
-        <div style={{ borderBottom:'1px solid #141414', background:'#080808', overflow:'hidden', padding:'7px 0', position:'relative', zIndex:10 }}>
-          <div style={{ display:'flex', gap:32, whiteSpace:'nowrap', animation:'ticker 20s linear infinite', width:'max-content' }}>
-            {[...tickerItems,...tickerItems].map((t,i) => (
-              <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:8, fontSize:11, color:'#444' }}>
-                <span style={{ width:5, height:5, borderRadius:'50%', background: t.type==='Bridge'?'#60a5fa':t.type==='Swap'?'#f59e0b':t.type==='Batch'?'#a78bfa':'#4ade80', display:'inline-block' }}/>
-                <strong style={{ color:'#fff' }}>@{t.handle}</strong>
-                <span>{t.type==='Batch'?'batch paid':`${t.type.toLowerCase()}ed`}</span>
-                <span style={{ color:'#c9a84c', fontWeight:700 }}>${t.amount} USDC</span>
-                <span style={{ color:'#333' }}>{t.time} ago</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* HERO */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'36px 24px 24px', textAlign:'center', position:'relative', zIndex:10 }}>
-
-          {/* Büyük logo */}
-          <div style={{ position:'relative', width:88, height:88, margin:'0 auto 28px', animation:'float 4s ease infinite' }}>
-            <div style={{ position:'absolute', inset:-4, borderRadius:26, background:'conic-gradient(transparent 0deg,#c9a84c 70deg,transparent 130deg)', animation:'sweep 2.5s linear infinite' }}/>
-            <div style={{ position:'absolute', inset:2, background:'#111', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #1e1e1e' }}>
-              <WavesLogo size={40}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 24px',textAlign:'center'}}>
+          <div style={{position:'relative',width:72,height:72,marginBottom:28}}>
+            <div style={{position:'absolute',inset:-1,borderRadius:18,background:'conic-gradient(transparent 0deg,#c9a84c 60deg,transparent 120deg)',animation:'sweepAnim 3s linear infinite',opacity:.5}}/>
+            <div style={{position:'absolute',inset:1,background:'#111',borderRadius:17,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <WavesLogo size={36}/>
             </div>
           </div>
-
-          <div style={{ fontSize:10, fontWeight:700, color:'#c9a84c', letterSpacing:2.5, marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ width:5, height:5, borderRadius:'50%', background:'#c9a84c', display:'inline-block', animation:'pulse 2s infinite' }}/>
-            BUILT ON ARC NETWORK
-            <span style={{ width:5, height:5, borderRadius:'50%', background:'#c9a84c', display:'inline-block', animation:'pulse 2s infinite' }}/>
-          </div>
-
-          <h1 style={{ fontSize:50, fontWeight:800, letterSpacing:'-2px', lineHeight:1.05, marginBottom:16, animation:'fadeUp .5s ease both' }}>
-            Send USDC<br/>
-            <span style={{ color:'#c9a84c' }}>Instantly.</span>{' '}
-            <span style={{ color:'#222' }}>Globally.</span>
+          <h1 style={{fontSize:40,fontWeight:800,letterSpacing:'-1px',marginBottom:12,lineHeight:1.1,color:'#fff'}}>
+            Global USDC Payments<br/><span style={{color:'#c9a84c'}}>on Arc Network</span>
           </h1>
-
-          <p style={{ fontSize:15, color:'#444', lineHeight:1.8, marginBottom:28, maxWidth:400, animation:'fadeUp .5s .1s ease both' }}>
-            No banks. No delays. No limits.<br/>Just your wallet and a @handle.
+          <p style={{color:'#555',marginBottom:40,fontSize:16,lineHeight:1.7,maxWidth:420}}>
+            Send, bridge, swap and batch pay with USDC.<br/>Sub-second finality. Zero complexity.
           </p>
-
-          {/* Stats — gerçek veriler */}
-          <div style={{ display:'flex', gap:0, marginBottom:32, background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:14, overflow:'hidden', animation:'fadeUp .5s .15s ease both' }}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:40,width:'100%',maxWidth:560}}>
             {[
-              { val:'$0', label:'FEES', color:'#4ade80' },
-              { val:'<1s', label:'FINALITY', color:'#60a5fa' },
-              { val:'∞', label:'RECIPIENTS', color:'#a78bfa' },
-              { val:'24/7', label:'UPTIME', color:'#f59e0b' },
-            ].map((s,i) => (
-              <div key={i} style={{ flex:1, padding:'14px 10px', textAlign:'center', borderRight: i<3 ? '1px solid #1a1a1a' : 'none' }}>
-                <div style={{ fontSize:20, fontWeight:300, color:s.color, letterSpacing:'-0.5px' }}>{s.val}</div>
-                <div style={{ fontSize:9, color:'#333', marginTop:3, fontWeight:700, letterSpacing:.5 }}>{s.label}</div>
+              {path:'M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z',label:'Send',desc:'Instant USDC'},
+              {path:'M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3m10 0h3a2 2 0 002-2v-3',label:'Bridge',desc:'Cross-chain'},
+              {path:'M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4',label:'Swap',desc:'USDC↔EURC'},
+              {path:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z',label:'Batch',desc:'Pay hundreds'},
+            ].map(f=>(
+              <div key={f.label} style={{background:'#0e0e0e',border:'1px solid #1a1a1a',borderRadius:14,padding:'14px 10px',textAlign:'left'}}>
+                <div style={{width:28,height:28,background:'#1a1500',border:'1px solid #2a2500',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:8}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round"><path d={f.path}/></svg>
+                </div>
+                <div style={{fontSize:12,fontWeight:700,color:'#fff'}}>{f.label}</div>
+                <div style={{fontSize:10,color:'#555',marginTop:2}}>{f.desc}</div>
               </div>
             ))}
           </div>
-
-          {/* Connect butonu — parlayan border */}
-          <button
-            onClick={() => connect({ connector: injected() })}
-            style={{ padding:'15px 52px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', borderRadius:16, fontSize:15, fontWeight:800, cursor:'pointer', marginBottom:28, animation:'breathe 2.5s ease infinite', letterSpacing:.3 }}>
-            Connect Wallet →
-          </button>
-
-          {/* Steps */}
-          <div style={{ display:'flex', gap:6, marginBottom:28, animation:'fadeUp .5s .25s ease both' }}>
+          <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%',maxWidth:300,marginBottom:24}}>
             {[
-              { n:'1', title:'Add Arc Testnet', sub:'MetaMask ↗', href:'https://thirdweb.com/arc-testnet' },
-              { n:'2', title:'Get Test USDC', sub:'Circle Faucet ↗', href:'https://faucet.circle.com' },
-            ].map(s => (
-              <a key={s.n} href={s.href} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 14px', background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:12, textDecoration:'none' }}>
-                <span style={{ position:'relative', width:22, height:22, borderRadius:7, overflow:'hidden', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <span style={{ position:'absolute', inset:-3, background:'conic-gradient(transparent 0deg,#c9a84c 55deg,transparent 110deg)', animation:'sweep 2.5s linear infinite' }}/>
-                  <span style={{ position:'absolute', inset:1, background:'#1a1500', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', zIndex:1, fontSize:9, fontWeight:800, color:'#c9a84c' }}>{s.n}</span>
-                </span>
+              {n:'1',t:'Add Arc Testnet',s:'Auto-add to MetaMask',href:'https://thirdweb.com/arc-testnet'},
+              {n:'2',t:'Get Test USDC',s:'Free from Circle Faucet',href:'https://faucet.circle.com'},
+            ].map(step=>(
+              <a key={step.n} href={step.href} target="_blank" rel="noopener noreferrer"
+                style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#0e0e0e',border:'1px solid #1a1a1a',borderRadius:12,textDecoration:'none'}}>
+                <div style={{width:20,height:20,background:'#1a1500',border:'1px solid #2a2500',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#c9a84c',flexShrink:0}}>{step.n}</div>
                 <div>
-                  <div style={{ fontSize:11, fontWeight:700, color:'#fff' }}>{s.title}</div>
-                  <div style={{ fontSize:9, color:'#444' }}>{s.sub}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#fff'}}>{step.t}</div>
+                  <div style={{fontSize:10,color:'#555'}}>{step.s}</div>
                 </div>
+                <span style={{marginLeft:'auto',fontSize:10,color:'#333'}}>↗</span>
               </a>
             ))}
           </div>
-
-          {/* Feature pills */}
-          <div style={{ display:'flex', gap:5, flexWrap:'wrap', justifyContent:'center', animation:'fadeUp .5s .3s ease both' }}>
-            {FEATURES.map(f => (
-              <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 11px', borderRadius:20, border:`1px solid ${f.border}`, background:f.bg, textDecoration:'none' }}>
-                <SweepIcon short={f.short} color={f.color} bg={f.bg} dark={f.dark} size={16}/>
-                <span style={{ fontSize:10, fontWeight:600, color:f.color }}>{f.label}</span>
+          <button onClick={connectWallet}
+            style={{padding:'14px 36px',background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',borderRadius:14,fontSize:15,fontWeight:800,cursor:'pointer'}}>
+            3. Connect Wallet →
+          </button>
+          <div style={{display:'flex',gap:12,marginTop:24,flexWrap:'wrap',justifyContent:'center'}}>
+            {QUICK_LINKS.map(l=>(
+              <Link key={l.href} href={l.href}
+                style={{fontSize:12,color:l.color,textDecoration:'none',padding:'5px 12px',background:l.bg,border:`1px solid ${l.border}`,borderRadius:20}}>
+                {l.emoji} {l.label}
               </Link>
             ))}
           </div>
         </div>
-
-        <div style={{ textAlign:'center', padding:12, fontSize:10, color:'#1a1a1a', borderTop:'1px solid #111', position:'relative', zIndex:10 }}>
+        <div style={{textAlign:'center',padding:'16px',fontSize:10,color:'#1a1a1a',borderTop:'1px solid #111'}}>
           Arc Global Payouts · Built on Arc Network · by GoGo
         </div>
       </div>
     )
   }
 
-  // ============ DASHBOARD ============
   return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:bg, color:text, fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' }}>
-      <style>{GLOBAL_CSS}</style>
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:bg,color:text,fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'}}>
+      <style>{`@keyframes tabSweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}`}</style>
 
       {/* TOASTS */}
-      <div style={{ position:'fixed', top:16, right:16, zIndex:50, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
-        {toasts.map(t => (
-          <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:12, fontSize:13, fontWeight:500, pointerEvents:'auto', border:'1px solid', background:t.type==='success'?'#0a1a0a':t.type==='error'?'#1a0a0a':'#111', borderColor:t.type==='success'?'#1a3a1a':t.type==='error'?'#3a1a1a':'#222', color:t.type==='success'?'#4ade80':t.type==='error'?'#f87171':'#888' }}>
+      <div style={{position:'fixed',top:16,right:16,zIndex:50,display:'flex',flexDirection:'column',gap:8,pointerEvents:'none'}}>
+        {toasts.map(t=>(
+          <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:12,fontSize:13,fontWeight:500,pointerEvents:'auto',border:'1px solid',
+            background:t.type==='success'?'#0a1a0a':t.type==='error'?'#1a0a0a':D?'#111':'#f9f9f9',
+            borderColor:t.type==='success'?'#1a3a1a':t.type==='error'?'#3a1a1a':D?'#222':'#e8e8e8',
+            color:t.type==='success'?'#4ade80':t.type==='error'?'#f87171':D?'#888':'#666'}}>
             <span>{t.type==='success'?'✓':t.type==='error'?'✕':<Spinner/>}</span>
             <span>{t.message}</span>
-            <button onClick={()=>removeToast(t.id)} style={{ marginLeft:8, fontSize:11, opacity:.4, background:'none', border:'none', cursor:'pointer', color:'inherit' }}>✕</button>
+            <button onClick={()=>removeToast(t.id)} style={{marginLeft:8,fontSize:11,opacity:.4,background:'none',border:'none',cursor:'pointer',color:'inherit'}}>✕</button>
           </div>
         ))}
       </div>
 
+      {/* QR MODAL */}
+      {showQR&&(
+        <div style={{position:'fixed',inset:0,zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.85)'}}>
+          <div style={{borderRadius:20,padding:24,border:`1px solid ${border}`,width:300,background:card}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <span style={{fontWeight:700,fontSize:13,color:text}}>Your Wallet Address</span>
+              <button onClick={()=>setShowQR(false)} style={{color:muted,background:'none',border:'none',cursor:'pointer',fontSize:16}}>✕</button>
+            </div>
+            <div style={{background:'#fff',padding:16,borderRadius:12,marginBottom:14,textAlign:'center'}}>
+              <div style={{fontSize:9,color:'#666',fontFamily:'monospace',wordBreak:'break-all'}}>{address}</div>
+            </div>
+            <button onClick={()=>{navigator.clipboard.writeText(address||'');addToast('success','Copied!');setShowQR(false)}}
+              style={{width:'100%',padding:12,borderRadius:12,fontWeight:800,fontSize:13,background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',cursor:'pointer'}}>
+              Copy Address
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* NAVBAR */}
-      <nav style={{ borderBottom:`1px solid ${border}`, padding:'11px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', background:navBg }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:32, height:32, background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <nav style={{borderBottom:`1px solid ${border}`,padding:'11px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',background:D?'#080808':'#fff'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:32,height:32,background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:9,display:'flex',alignItems:'center',justifyContent:'center'}}>
             <WavesLogo size={18}/>
           </div>
           <div>
-            <div style={{ fontWeight:700, fontSize:13, color:text }}>Arc Global Payouts</div>
-            <div style={{ fontSize:8, color:'#c9a84c', fontWeight:700, letterSpacing:'.8px' }}>ARC NETWORK <span style={{ color:muted }}>· by GoGo</span></div>
+            <div style={{fontWeight:700,fontSize:13,color:text}}>Arc Global Payouts</div>
+            <div style={{fontSize:8,color:'#c9a84c',fontWeight:700,letterSpacing:'.8px'}}>ARC NETWORK <span style={{color:muted}}>· by GoGo</span></div>
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:5, background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'3px 9px' }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:'#c9a84c', animation:'pulse 2s infinite' }}/>
-            <span style={{ fontSize:10, color:muted }}>Arc Testnet</span>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+          <div style={{display:'flex',alignItems:'center',gap:5,background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:20,padding:'3px 9px'}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:'#c9a84c',animation:'pulse 2s infinite'}}></div>
+            <span style={{fontSize:10,color:muted}}>Arc Testnet</span>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:5, background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'3px 9px' }}>
-            <div style={{ width:20, height:20, borderRadius:'50%', background:'linear-gradient(135deg,#c9a84c,#a07830)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:800, color:'#000' }}>G</div>
-            <span style={{ fontSize:10, color:muted }}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
-          </div>
-          <Link href="/history" style={{ fontSize:10, color:muted, textDecoration:'none', padding:'3px 8px', background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:6 }}>History</Link>
-
-          {/* X kullanıcısı */}
-          {xUser ? (
-            <div style={{ display:'flex', alignItems:'center', gap:5, padding:'3px 9px', background:'#0a1628', border:'1px solid #1e3a5f', borderRadius:20 }}>
-              {xUser.avatar && <img src={xUser.avatar} alt="" style={{ width:18, height:18, borderRadius:'50%' }}/>}
-              <span style={{ fontSize:10, color:'#60a5fa', fontWeight:700 }}>@{xUser.username}</span>
-            </div>
-          ) : (
-            <a href="/api/auth" style={{ fontSize:10, padding:'4px 10px', background:'linear-gradient(135deg,#c9a84c,#a07830)', borderRadius:6, color:'#000', fontWeight:800, textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="#000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              Create My Profile
-            </a>
-          )}
-
-          <button onClick={()=>setDarkMode(!D)} style={{ fontSize:11, padding:'3px 7px', background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:6, cursor:'pointer', color:text }}>
-            {D?'☀':'🌙'}
+          <button onClick={()=>setShowQR(true)} style={{display:'flex',alignItems:'center',gap:5,background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:20,padding:'3px 9px',cursor:'pointer'}}>
+            <div style={{width:20,height:20,borderRadius:'50%',background:'linear-gradient(135deg,#c9a84c,#a07830)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800,color:'#000'}}>G</div>
+            <span style={{fontSize:10,color:muted}}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
           </button>
-          <button onClick={()=>disconnect()} style={{ fontSize:10, color:muted, cursor:'pointer', background:'none', border:'none' }}>Disconnect</button>
+          <Link href="/history" style={{fontSize:10,color:muted,textDecoration:'none',padding:'3px 8px',background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:6}}>History</Link>
+          <Link href="/game" style={{fontSize:10,textDecoration:'none',padding:'3px 8px',background:'#1a1500',border:'1px solid #2a2500',borderRadius:6,color:'#c9a84c',fontWeight:700}}>🎮 Tetris</Link>
+          <Link href="/ai" style={{fontSize:10,textDecoration:'none',padding:'3px 8px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:6,color:'#60a5fa',fontWeight:700}}>🤖 AI</Link>
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setShowHelp(!showHelp)}
+              style={{width:22,height:22,borderRadius:'50%',background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,fontSize:11,color:muted,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>?</button>
+            {showHelp&&(
+              <div style={{position:'absolute',right:0,top:28,width:220,background:D?'#0e0e0e':'#fff',border:`1px solid ${border}`,borderRadius:14,zIndex:50,padding:12}}>
+                <div style={{fontSize:10,color:'#c9a84c',fontWeight:700,marginBottom:10}}>Quick Links</div>
+                {QUICK_LINKS.map(item=>(
+                  <Link key={item.href} href={item.href} onClick={()=>setShowHelp(false)}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderRadius:8,textDecoration:'none',color:item.color}}>
+                    <span style={{fontSize:13}}>{item.emoji}</span>
+                    <span style={{fontSize:12}}>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={()=>setDarkMode(!D)} style={{fontSize:12,padding:'3px 7px',background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:6,cursor:'pointer'}}>{D?'☀️':'🌙'}</button>
+          {xUser ? (
+  <div style={{display:'flex',alignItems:'center',gap:6,padding:'3px 9px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:20}}>
+    {xUser.avatar && <img src={xUser.avatar} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>}
+    <span style={{fontSize:10,color:'#60a5fa',fontWeight:700}}>@{xUser.username}</span>
+    <button onClick={()=>{document.cookie='arc_x_user=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';setXUser(null)}} style={{fontSize:9,color:'#444',background:'none',border:'none',cursor:'pointer'}}>✕</button>
+  </div>
+) : (
+  <a href="/api/auth" style={{fontSize:10,padding:'4px 12px',background:'linear-gradient(135deg,#c9a84c,#a07830)',border:'none',borderRadius:6,color:'#000',fontWeight:800,textDecoration:'none',display:'flex',alignItems:'center',gap:5}}>
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="#000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+  Create My Profile
+</a>
+)}<button onClick={()=>disconnect()} style={{fontSize:10,color:'#666',cursor:'pointer',background:'none',border:'none'}}>Disconnect</button>
+          <button style={{display:'flex',flexDirection:'column',gap:3,padding:6,background:'none',border:'none',cursor:'pointer'}} onClick={()=>setMobileMenuOpen(!mobileMenuOpen)}>
+            <span style={{display:'block',width:16,height:2,background:muted}}></span>
+            <span style={{display:'block',width:16,height:2,background:muted,opacity:mobileMenuOpen?0:1}}></span>
+            <span style={{display:'block',width:16,height:2,background:muted}}></span>
+          </button>
         </div>
       </nav>
 
-      {/* FEATURE BAR */}
-      <div style={{ borderBottom:`1px solid ${border}`, padding:'0 16px', overflowX:'auto', background:navBg }}>
-        <div style={{ display:'flex', gap:6, minWidth:'max-content', padding:'10px 0', alignItems:'center' }}>
-          {/* Main tabs */}
-          {(['send','batch','nft','bridge','swap'] as Tab[]).map((t,i) => {
-            const labels = ['Send','Batch','NFT','Bridge','Swap']
-            const shorts = ['S','B','N','Br','Sw']
-            const isActive = tab === t
-            return (
-              <button key={t} onClick={()=>setTab(t)}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 13px', borderRadius:10, border:`1px solid ${isActive?'#c9a84c55':border}`, background:isActive?'#1a1500':D?'#0e0e0e':'#f8f8f8', cursor:'pointer', flexShrink:0 }}>
-                <SweepIcon short={shorts[i]} color={isActive?'#c9a84c':'#555'} bg={isActive?'#1a1500':D?'#0e0e0e':'#f0f0f0'} dark={isActive?'#2a2000':D?'#141414':'#e8e8e8'} size={22}/>
-                <span style={{ fontSize:11, fontWeight:isActive?700:500, color:isActive?'#c9a84c':muted, whiteSpace:'nowrap' }}>{labels[i]}</span>
-              </button>
-            )
-          })}
+      {mobileMenuOpen&&(
+        <div style={{borderBottom:`1px solid ${border}`,padding:'12px 16px',display:'flex',flexDirection:'column',gap:10,background:D?'#0a0a0a':'#fafafa'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            {QUICK_LINKS.map(l=>(
+              <Link key={l.href} href={l.href} onClick={()=>setMobileMenuOpen(false)}
+                style={{fontSize:12,color:l.color,textDecoration:'none',padding:'7px 10px',background:l.bg,border:`1px solid ${l.border}`,borderRadius:8,textAlign:'center'}}>
+                {l.emoji} {l.label}
+              </Link>
+            ))}
+          </div>
+          <button onClick={()=>disconnect()} style={{fontSize:12,color:'#f87171',background:'none',border:'none',cursor:'pointer',textAlign:'left'}}>Disconnect</button>
+        </div>
+      )}
 
-          <div style={{ width:1, height:26, background:border, flexShrink:0, margin:'0 3px' }}/>
-
-          {/* Feature tabs */}
-          {FEATURES.map(f => (
-            <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 13px', borderRadius:10, border:`1px solid ${f.border}`, background:f.bg, textDecoration:'none', flexShrink:0 }}>
-              <SweepIcon short={f.short} color={f.color} bg={f.bg} dark={f.dark} size={22}/>
-              <span style={{ fontSize:11, fontWeight:700, color:f.color, whiteSpace:'nowrap' }}>{f.label}</span>
-            </Link>
+      {/* TABS */}
+      <div style={{borderBottom:`1px solid ${border}`,padding:'0 16px',overflowX:'auto',background:D?'#080808':'#fff'}}>
+        <div style={{display:'flex',minWidth:'max-content'}}>
+          {TAB_CONFIG.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id as Tab)}
+              style={{padding:'10px 14px',fontSize:12,fontWeight:500,borderBottom:'2px solid',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',background:'none',cursor:'pointer',transition:'all .2s',
+                color:tab===t.id?'#c9a84c':muted, borderBottomColor:tab===t.id?'#c9a84c':'transparent'}}>
+              <TabIcon short={t.short} active={tab===t.id}/>
+              {t.label}
+            </button>
           ))}
         </div>
       </div>
 
-      <div style={{ display:'flex', flex:1 }}>
+      <div style={{display:'flex',flex:1}} onClick={()=>showHelp&&setShowHelp(false)}>
+        {showSidePanel&&(
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'20px 16px'}}>
+            <div style={{width:'100%',maxWidth:440,background:card,border:`1px solid ${border}`,borderRadius:20,padding:20}}>
 
-        {/* MAIN CONTENT */}
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 16px' }}>
-
-          {/* SEND TAB */}
-          {tab==='send' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted }}>YOU PAY</label>
-                <span style={{ fontSize:10, color:muted }}>Balance: ${balanceFormatted||'—'}</span>
-              </div>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:8 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <input type="number" value={singleAmount} onChange={e=>setSingleAmount(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
-                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
-                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}/>
-                    <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+              {/* SEND */}
+              {tab==='send'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted}}>YOU PAY</label>
+                    <span style={{fontSize:10,color:muted}}>Balance: ${balanceFormatted||'—'}</span>
                   </div>
-                </div>
-                <div style={{ fontSize:10, color:subtle, marginTop:5 }}>Arc Testnet</div>
-              </div>
-              {/* Quick amounts */}
-              <div style={{ display:'flex', gap:5, marginBottom:8 }}>
-                {['10','25','50','100'].map(v => (
-                  <button key={v} onClick={()=>setSingleAmount(v)}
-                    style={{ flex:1, padding:'5px 0', borderRadius:8, border:`1px solid ${singleAmount===v?'#c9a84c':border}`, background:singleAmount===v?'#1a1500':field, color:singleAmount===v?'#c9a84c':muted, fontSize:11, fontWeight:700, cursor:'pointer' }}>
-                    ${v}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
-                <div style={{ width:28, height:28, background:D?'#080808':field, border:`1px solid ${border}`, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:subtle }}>↓</div>
-              </div>
-              <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>TO</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:14 }}>
-                <input type="text" value={singleAddress} onChange={e=>setSingleAddress(e.target.value)} placeholder="Wallet address or @handle"
-                  style={{ fontSize:13, background:'transparent', border:'none', color:singleAddress?text:muted, outline:'none', width:'100%' }}/>
-                <div style={{ fontSize:10, color:subtle, marginTop:4 }}>Arc Testnet</div>
-              </div>
-              <button onClick={sendSingle} disabled={paying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:paying?'default':'pointer', background:paying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:paying?D?'#666':'#999':'#000' }}>
-                {paying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>SENDING...</span>:'CONFIRM TRANSFER'}
-              </button>
-              {txResult && <TxBox result={txResult} amount={singleAmount} token="USDC"/>}
-            </div>
-          )}
-
-          {/* BRIDGE TAB */}
-          {tab==='bridge' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
-              <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>FROM</label>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:12 }}>
-                {CHAINS.filter(c=>c.id!==bridgeTo).map(chain => (
-                  <button key={chain.id} onClick={()=>setBridgeFrom(chain.id)}
-                    style={{ padding:'7px 4px', borderRadius:10, fontSize:10, fontWeight:600, border:'1px solid', cursor:'pointer', borderColor:bridgeFrom===chain.id?'#c9a84c':border, color:bridgeFrom===chain.id?'#c9a84c':muted, background:bridgeFrom===chain.id?'#1a1500':field }}>
-                    <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', marginRight:4, background:chain.color }}/>
-                    {chain.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <input type="number" value={bridgeAmount} onChange={e=>setBridgeAmount(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
-                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
-                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}/>
-                    <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                  <div style={{background:field,border:`1px solid ${fieldBorder}`,borderRadius:14,padding:'12px 14px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <input type="number" value={singleAmount} onChange={e=>setSingleAmount(e.target.value)} placeholder="0"
+                        style={{fontSize:32,fontWeight:300,flex:1,background:'transparent',border:'none',color:text,outline:'none',letterSpacing:'-1px'}}/>
+                      <div style={{background:D?'#141414':'#f0f0f0',border:`1px solid ${border}`,borderRadius:20,padding:'5px 11px',display:'flex',alignItems:'center',gap:5}}>
+                        <div style={{width:7,height:7,borderRadius:'50%',background:'#6366f1'}}></div>
+                        <span style={{fontSize:12,fontWeight:700,color:text}}>USDC</span>
+                      </div>
+                    </div>
+                    <div style={{fontSize:10,color:subtle,marginTop:5}}>Arc Testnet</div>
                   </div>
-                </div>
-              </div>
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:10 }}>
-                <button onClick={()=>{ const t=bridgeFrom; setBridgeFrom(bridgeTo); setBridgeTo(t) }}
-                  style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
-              </div>
-              <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>TO</label>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:14 }}>
-                {CHAINS.filter(c=>c.id!==bridgeFrom).map(chain => (
-                  <button key={chain.id} onClick={()=>setBridgeTo(chain.id)}
-                    style={{ padding:'7px 4px', borderRadius:10, fontSize:10, fontWeight:600, border:'1px solid', cursor:'pointer', borderColor:bridgeTo===chain.id?'#c9a84c':border, color:bridgeTo===chain.id?'#c9a84c':muted, background:bridgeTo===chain.id?'#1a1500':field }}>
-                    <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', marginRight:4, background:chain.color }}/>
-                    {chain.label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={sendBridge} disabled={bridgePaying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:bridgePaying?'default':'pointer', background:bridgePaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:bridgePaying?D?'#666':'#999':'#000' }}>
-                {bridgePaying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>BRIDGING...</span>:'CONFIRM BRIDGE'}
-              </button>
-              {bridgeResult && <TxBox result={bridgeResult} amount={bridgeAmount} token="USDC"/>}
-            </div>
-          )}
-
-          {/* SWAP TAB */}
-          {tab==='swap' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
-              <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU PAY</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <input type="number" value={swapAmountIn} onChange={e=>setSwapAmountIn(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
-                  <select value={swapTokenIn} onChange={e=>setSwapTokenIn(e.target.value)}
-                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
-                    {TOKENS.filter(t=>t!==swapTokenOut).map(t=><option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:10 }}>
-                <button onClick={()=>{ const t=swapTokenIn; setSwapTokenIn(swapTokenOut); setSwapTokenOut(t) }}
-                  style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
-              </div>
-              <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU RECEIVE</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <span style={{ fontSize:32, fontWeight:300, flex:1, color:muted, letterSpacing:'-1px' }}>{swapAmountOut}</span>
-                  <select value={swapTokenOut} onChange={e=>setSwapTokenOut(e.target.value)}
-                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
-                    {TOKENS.filter(t=>t!==swapTokenIn).map(t=><option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:6, marginBottom:14 }}>
-                {['0.5','1','3'].map(s => (
-                  <button key={s} onClick={()=>setSwapSlippage(s)}
-                    style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:700, border:'1px solid', cursor:'pointer', borderColor:swapSlippage===s?'#c9a84c':border, color:swapSlippage===s?'#c9a84c':muted, background:swapSlippage===s?'#1a1500':field }}>{s}%</button>
-                ))}
-              </div>
-              <button onClick={sendSwap} disabled={swapPaying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:swapPaying?'default':'pointer', background:swapPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:swapPaying?D?'#666':'#999':'#000' }}>
-                {swapPaying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>SWAPPING...</span>:'CONFIRM SWAP'}
-              </button>
-              {swapResult && <TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn}/>}
-            </div>
-          )}
-
-          {/* NFT TAB */}
-          {tab==='nft' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
-              <h2 style={{ fontSize:16, fontWeight:700, color:text, marginBottom:14 }}>NFT Receipt</h2>
-              <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
-                {nftImagePreview && <img src={nftImagePreview} alt="" style={{ width:60, height:60, borderRadius:10, objectFit:'cover', border:`1px solid ${border}` }}/>}
-                <button onClick={()=>nftImageRef.current?.click()} disabled={uploadingImage}
-                  style={{ padding:'8px 16px', borderRadius:8, fontSize:12, fontWeight:700, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>
-                  {uploadingImage?<span style={{ display:'flex', alignItems:'center', gap:6 }}><Spinner/>Uploading...</span>:nftImageUrl?'✅ Uploaded':'Select Image'}
-                </button>
-                <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} style={{ display:'none' }}/>
-              </div>
-              {nftImageUrl && <div style={{ background:'#0a1a0a', border:'1px solid #1a3a1a', borderRadius:10, padding:10, fontSize:12, color:'#4ade80' }}>✅ Uploaded to IPFS</div>}
-            </div>
-          )}
-
-          {/* BATCH TAB */}
-          {tab==='batch' && (
-            <div style={{ flex:1, padding:'0 16px', maxWidth:900, width:'100%' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-                <h2 style={{ fontSize:18, fontWeight:700, color:text }}>Batch Payout</h2>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  <button onClick={downloadTemplate} style={{ padding:'7px 12px', background:card, border:`1px solid ${border}`, borderRadius:8, fontSize:12, color:muted, cursor:'pointer' }}>Template</button>
-                  <button onClick={()=>fileRef.current?.click()} style={{ padding:'7px 12px', background:card, border:`1px solid ${border}`, borderRadius:8, fontSize:12, color:muted, cursor:'pointer' }}>Import CSV</button>
-                  <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} style={{ display:'none' }}/>
-                  {pendingCount>0 && (
-                    <button onClick={sendBatch} disabled={batchPaying}
-                      style={{ padding:'7px 14px', borderRadius:8, fontSize:12, fontWeight:800, border:'none', cursor:batchPaying?'default':'pointer', background:batchPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:batchPaying?D?'#666':'#999':'#000' }}>
-                      {batchPaying?<span style={{ display:'flex', alignItems:'center', gap:6 }}><Spinner/>Sending...</span>:`Send to ${pendingCount}`}
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:14, padding:14, marginBottom:12 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr auto', gap:8 }}>
-                  <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Name" style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }}/>
-                  <input value={newAddress} onChange={e=>setNewAddress(e.target.value)} placeholder="0x..." style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }}/>
-                  <input value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder="USDC" type="number" style={{ padding:'8px 10px', border:`1px solid ${border}`, borderRadius:8, fontSize:12, background:field, color:text, outline:'none' }}/>
-                  <button onClick={addRecipient} style={{ padding:'8px 14px', borderRadius:8, fontSize:13, fontWeight:800, background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', cursor:'pointer' }}>+</button>
-                </div>
-              </div>
-              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:14, overflow:'hidden' }}>
-                {recipients.length===0 ? (
-                  <div style={{ padding:48, textAlign:'center' }}>
-                    <div style={{ fontSize:36, marginBottom:10, opacity:.3 }}>⬜</div>
-                    <p style={{ color:muted }}>No recipients yet</p>
+                  <div style={{display:'flex',justifyContent:'center'}}>
+                    <div style={{width:28,height:28,background:D?'#0e0e0e':field,border:`1px solid ${border}`,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,color:subtle}}>↓</div>
                   </div>
-                ) : (
-                  <table style={{ width:'100%', minWidth:600, borderCollapse:'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom:`1px solid ${border}` }}>
-                        {['NAME','ADDRESS','AMOUNT','STATUS','TX'].map(h => (
-                          <th key={h} style={{ textAlign:'left', padding:'10px 14px', fontSize:10, fontWeight:700, letterSpacing:'.4px', color:muted }}>{h}</th>
+                  <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted}}>TO</label>
+                  <div style={{background:field,border:`1px solid ${fieldBorder}`,borderRadius:14,padding:'12px 14px'}}>
+                    <input type="text" value={singleAddress} onChange={e=>setSingleAddress(e.target.value)} placeholder="Wallet address or ENS"
+                      style={{fontSize:13,background:'transparent',border:'none',color:singleAddress?text:muted,outline:'none',width:'100%'}}/>
+                    <div style={{fontSize:10,color:subtle,marginTop:4}}>Arc Testnet</div>
+                  </div>
+                  {favorites.length>0&&(
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted,marginBottom:6}}>FAVORITES</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                        {favorites.map((f,i)=>(
+                          <button key={i} onClick={()=>setSingleAddress(f.address)}
+                            style={{fontSize:10,padding:'3px 8px',background:D?'#141414':field,border:`1px solid ${border}`,borderRadius:8,color:muted,cursor:'pointer'}}>
+                            ⭐ {f.name}
+                          </button>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recipients.map(r => (
-                        <tr key={r.id} style={{ borderBottom:`1px solid ${border}` }}>
-                          <td style={{ padding:'12px 14px', fontSize:12, color:text }}>{r.name}</td>
-                          <td style={{ padding:'12px 14px', fontSize:11, color:muted, fontFamily:'monospace' }}>{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
-                          <td style={{ padding:'12px 14px', fontSize:12, fontWeight:700, color:'#c9a84c' }}>{r.amount} USDC</td>
-                          <td style={{ padding:'12px 14px' }}>
-                            <span style={{ padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:700, background:r.status==='paid'?'#0a1a0a':'#1a1500', color:r.status==='paid'?'#4ade80':'#c9a84c' }}>
-                              {r.status==='paid'?'✅ Paid':'⏳ Pending'}
-                            </span>
-                          </td>
-                          <td style={{ padding:'12px 14px' }}>
-                            {r.txHash ? <a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:'#6366f1', textDecoration:'none' }}>Explorer</a> : <span style={{ fontSize:11, color:subtle }}>—</span>}
-                          </td>
-                        </tr>
+                      </div>
+                    </div>
+                  )}
+                  {singleAddress&&!showFavInput&&(
+                    <button onClick={()=>setShowFavInput(true)} style={{fontSize:10,color:subtle,background:'none',border:'none',cursor:'pointer',textAlign:'left'}}>+ Save to favorites</button>
+                  )}
+                  {showFavInput&&(
+                    <div style={{display:'flex',gap:6}}>
+                      <input value={favName} onChange={e=>setFavName(e.target.value)} placeholder="Label"
+                        style={{flex:1,fontSize:11,padding:'6px 10px',border:`1px solid ${border}`,borderRadius:8,background:D?'#141414':field,color:text,outline:'none'}}/>
+                      <button onClick={addFavorite} style={{fontSize:11,padding:'6px 12px',borderRadius:8,fontWeight:800,background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',cursor:'pointer'}}>Save</button>
+                      <button onClick={()=>setShowFavInput(false)} style={{fontSize:11,color:muted,background:'none',border:'none',cursor:'pointer'}}>✕</button>
+                    </div>
+                  )}
+                  {singleAmount&&(
+                    <div style={{background:field,border:`1px solid ${border}`,borderRadius:12,padding:'10px 12px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}><span style={{color:muted}}>Network fee</span><span style={{color:subtle}}>~0.009 USDC</span></div>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:700,borderTop:`1px solid ${border}`,paddingTop:6,marginTop:4}}>
+                        <span style={{color:text}}>Total</span><span style={{color:'#c9a84c'}}>{singleAmount} USDC</span>
+                      </div>
+                    </div>
+                  )}
+                  <button onClick={sendSingle} disabled={paying}
+                    style={{width:'100%',padding:13,borderRadius:12,fontWeight:800,fontSize:13,border:'none',cursor:paying?'default':'pointer',
+                      background:paying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)',
+                      color:paying?D?'#666':'#999':'#000'}}>
+                    {paying?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Spinner/>SENDING...</span>:'CONFIRM TRANSFER'}
+                  </button>
+                  {txResult&&<TxBox result={txResult} amount={singleAmount} token="USDC"/>}
+                </div>
+              )}
+
+              {/* NFT */}
+              {tab==='nft'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                  <h2 style={{fontWeight:700,fontSize:16,color:text}}>NFT Receipt Image</h2>
+                  <p style={{fontSize:12,color:muted}}>Upload an image to mint as NFT receipt after each payment.</p>
+                  <div style={{border:`2px dashed ${border}`,borderRadius:14,padding:28,textAlign:'center'}}>
+                    {nftImagePreview?<img src={nftImagePreview} alt="NFT" style={{width:120,height:120,borderRadius:12,objectFit:'cover',margin:'0 auto 10px',display:'block'}}/>:<div style={{fontSize:36,marginBottom:10}}>🎨</div>}
+                    <button onClick={()=>nftImageRef.current?.click()} disabled={uploadingImage}
+                      style={{padding:'8px 16px',borderRadius:8,fontSize:12,fontWeight:700,background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',cursor:'pointer'}}>
+                      {uploadingImage?<span style={{display:'flex',alignItems:'center',gap:6}}><Spinner/>Uploading...</span>:nftImageUrl?'✅ Uploaded':'Select Image'}
+                    </button>
+                    <input ref={nftImageRef} type="file" accept="image/*" onChange={handleNFTImageSelect} style={{display:'none'}}/>
+                  </div>
+                  {nftImageUrl&&<div style={{background:'#0a1a0a',border:'1px solid #1a3a1a',borderRadius:10,padding:10,fontSize:12,color:'#4ade80'}}>✅ Uploaded to IPFS</div>}
+                </div>
+              )}
+
+              {/* BRIDGE */}
+              {tab==='bridge'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted,display:'block',marginBottom:8}}>FROM</label>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+                      {CHAINS.filter(c=>c.id!==bridgeTo).map(chain=>(
+                        <button key={chain.id} onClick={()=>setBridgeFrom(chain.id)}
+                          style={{padding:'7px 4px',borderRadius:10,fontSize:10,fontWeight:600,border:'1px solid',cursor:'pointer',
+                            borderColor:bridgeFrom===chain.id?'#c9a84c':border,color:bridgeFrom===chain.id?'#c9a84c':muted,background:bridgeFrom===chain.id?'#1a1500':field}}>
+                          <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',marginRight:4,background:chain.color}}></span>
+                          {chain.label}
+                        </button>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
+                  <div style={{background:field,border:`1px solid ${fieldBorder}`,borderRadius:14,padding:'12px 14px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <input type="number" value={bridgeAmount} onChange={e=>setBridgeAmount(e.target.value)} placeholder="0"
+                        style={{fontSize:32,fontWeight:300,flex:1,background:'transparent',border:'none',color:text,outline:'none',letterSpacing:'-1px'}}/>
+                      <div style={{background:D?'#141414':'#f0f0f0',border:`1px solid ${border}`,borderRadius:20,padding:'5px 11px',display:'flex',alignItems:'center',gap:5}}>
+                        <div style={{width:7,height:7,borderRadius:'50%',background:'#6366f1'}}></div>
+                        <span style={{fontSize:12,fontWeight:700,color:text}}>USDC</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'center'}}>
+                    <button onClick={flipBridge} style={{width:36,height:36,border:`1px solid ${border}`,borderRadius:'50%',background:card,fontSize:16,color:muted,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>⇅</button>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted,display:'block',marginBottom:8}}>TO</label>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+                      {CHAINS.filter(c=>c.id!==bridgeFrom).map(chain=>(
+                        <button key={chain.id} onClick={()=>setBridgeTo(chain.id)}
+                          style={{padding:'7px 4px',borderRadius:10,fontSize:10,fontWeight:600,border:'1px solid',cursor:'pointer',
+                            borderColor:bridgeTo===chain.id?'#c9a84c':border,color:bridgeTo===chain.id?'#c9a84c':muted,background:bridgeTo===chain.id?'#1a1500':field}}>
+                          <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',marginRight:4,background:chain.color}}></span>
+                          {chain.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={sendBridge} disabled={bridgePaying}
+                    style={{width:'100%',padding:13,borderRadius:12,fontWeight:800,fontSize:13,border:'none',cursor:bridgePaying?'default':'pointer',
+                      background:bridgePaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)',
+                      color:bridgePaying?D?'#666':'#999':'#000'}}>
+                    {bridgePaying?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Spinner/>BRIDGING...</span>:'CONFIRM BRIDGE'}
+                  </button>
+                  {bridgeResult&&<TxBox result={bridgeResult} amount={bridgeAmount} token="USDC"/>}
+                </div>
+              )}
+
+              {/* SWAP */}
+              {tab==='swap'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted,display:'block',marginBottom:6}}>YOU PAY</label>
+                    <div style={{background:field,border:`1px solid ${fieldBorder}`,borderRadius:14,padding:'12px 14px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <input type="number" value={swapAmountIn} onChange={e=>setSwapAmountIn(e.target.value)} placeholder="0"
+                          style={{fontSize:32,fontWeight:300,flex:1,background:'transparent',border:'none',color:text,outline:'none',letterSpacing:'-1px'}}/>
+                        <select value={swapTokenIn} onChange={e=>setSwapTokenIn(e.target.value)}
+                          style={{background:D?'#141414':'#f0f0f0',border:`1px solid ${border}`,borderRadius:20,padding:'5px 11px',fontSize:12,fontWeight:700,color:text,outline:'none',cursor:'pointer'}}>
+                          {TOKENS.filter(t=>t!==swapTokenOut).map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'center'}}>
+                    <button onClick={flipSwap} style={{width:36,height:36,border:`1px solid ${border}`,borderRadius:'50%',background:card,fontSize:16,color:muted,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>⇅</button>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted,display:'block',marginBottom:6}}>YOU RECEIVE</label>
+                    <div style={{background:field,border:`1px solid ${fieldBorder}`,borderRadius:14,padding:'12px 14px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:32,fontWeight:300,flex:1,color:muted,letterSpacing:'-1px'}}>{swapAmountOut}</span>
+                        <select value={swapTokenOut} onChange={e=>setSwapTokenOut(e.target.value)}
+                          style={{background:D?'#141414':'#f0f0f0',border:`1px solid ${border}`,borderRadius:20,padding:'5px 11px',fontSize:12,fontWeight:700,color:text,outline:'none',cursor:'pointer'}}>
+                          {TOKENS.filter(t=>t!==swapTokenIn).map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {['0.5','1','3'].map(s=>(
+                      <button key={s} onClick={()=>setSwapSlippage(s)}
+                        style={{padding:'5px 12px',borderRadius:8,fontSize:11,fontWeight:700,border:'1px solid',cursor:'pointer',
+                          borderColor:swapSlippage===s?'#c9a84c':border,color:swapSlippage===s?'#c9a84c':muted,background:swapSlippage===s?'#1a1500':field}}>{s}%</button>
+                    ))}
+                    {priceImpactHigh&&<span style={{fontSize:11,fontWeight:700,color:'#f87171'}}>⚠ High impact</span>}
+                  </div>
+                  <button onClick={sendSwap} disabled={swapPaying}
+                    style={{width:'100%',padding:13,borderRadius:12,fontWeight:800,fontSize:13,border:'none',cursor:swapPaying?'default':'pointer',
+                      background:swapPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)',
+                      color:swapPaying?D?'#666':'#999':'#000'}}>
+                    {swapPaying?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Spinner/>SWAPPING...</span>:'CONFIRM SWAP'}
+                  </button>
+                  {swapResult&&<TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn}/>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* BATCH */}
+        {tab==='batch'&&(
+          <div style={{flex:1,padding:'16px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
+              <h2 style={{fontSize:18,fontWeight:700,color:text}}>Batch Payout</h2>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                <button onClick={downloadTemplate} style={{padding:'7px 12px',background:card,border:`1px solid ${border}`,borderRadius:8,fontSize:12,color:muted,cursor:'pointer'}}>Template</button>
+                <button onClick={()=>fileRef.current?.click()} style={{padding:'7px 12px',background:card,border:`1px solid ${border}`,borderRadius:8,fontSize:12,color:muted,cursor:'pointer'}}>Import CSV</button>
+                <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} style={{display:'none'}}/>
+                {pendingCount>0&&(
+                  <button onClick={sendBatch} disabled={batchPaying}
+                    style={{padding:'7px 14px',borderRadius:8,fontSize:12,fontWeight:800,border:'none',cursor:batchPaying?'default':'pointer',
+                      background:batchPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)',
+                      color:batchPaying?D?'#666':'#999':'#000'}}>
+                    {batchPaying?<span style={{display:'flex',alignItems:'center',gap:6}}><Spinner/>Sending...</span>:`Send to ${pendingCount}`}
+                  </button>
                 )}
               </div>
             </div>
-          )}
-        </div>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:14,marginBottom:12}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr auto',gap:8}}>
+                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Name" style={{padding:'8px 10px',border:`1px solid ${border}`,borderRadius:8,fontSize:12,background:field,color:text,outline:'none'}}/>
+                <input value={newAddress} onChange={e=>setNewAddress(e.target.value)} placeholder="0x..." style={{padding:'8px 10px',border:`1px solid ${border}`,borderRadius:8,fontSize:12,background:field,color:text,outline:'none'}}/>
+                <input value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder="USDC" type="number" style={{padding:'8px 10px',border:`1px solid ${border}`,borderRadius:8,fontSize:12,background:field,color:text,outline:'none'}}/>
+                <button onClick={addRecipient} style={{padding:'8px 14px',borderRadius:8,fontSize:13,fontWeight:800,background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',cursor:'pointer'}}>+</button>
+              </div>
+            </div>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,overflow:'hidden',overflowX:'auto'}}>
+              {recipients.length===0?(
+                <div style={{padding:48,textAlign:'center'}}>
+                  <div style={{fontSize:36,marginBottom:10}}>👥</div>
+                  <p style={{color:muted}}>No recipients yet</p>
+                </div>
+              ):(
+                <table style={{width:'100%',minWidth:600,borderCollapse:'collapse'}}>
+                  <thead>
+                    <tr style={{borderBottom:`1px solid ${border}`}}>
+                      {['NAME','ADDRESS','AMOUNT','STATUS','TX'].map(h=>(
+                        <th key={h} style={{textAlign:'left',padding:'10px 14px',fontSize:10,fontWeight:700,letterSpacing:'.4px',color:muted}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recipients.map(r=>(
+                      <tr key={r.id} style={{borderBottom:`1px solid ${border}`}}>
+                        <td style={{padding:'12px 14px',fontSize:12,color:text}}>{r.name}</td>
+                        <td style={{padding:'12px 14px',fontSize:11,color:muted,fontFamily:'monospace'}}>{r.address.slice(0,6)}...{r.address.slice(-4)}</td>
+                        <td style={{padding:'12px 14px',fontSize:12,fontWeight:700,color:'#c9a84c'}}>{r.amount} USDC</td>
+                        <td style={{padding:'12px 14px'}}>
+                          <span style={{padding:'2px 8px',borderRadius:6,fontSize:11,fontWeight:700,background:r.status==='paid'?'#0a1a0a':'#1a1500',color:r.status==='paid'?'#4ade80':'#c9a84c'}}>
+                            {r.status==='paid'?'✅ Paid':'⏳ Pending'}
+                          </span>
+                        </td>
+                        <td style={{padding:'12px 14px'}}>{r.txHash?<a href={`https://testnet.arcscan.app/tx/${r.txHash}`} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'#6366f1',textDecoration:'none'}}>Explorer</a>:<span style={{fontSize:11,color:subtle}}>—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* RIGHT PANEL */}
-        {tab !== 'batch' && (
-          <div style={{ width:300, borderLeft:`1px solid ${border}`, padding:12, display:'flex', flexDirection:'column', gap:8, background:D?'#080808':'#fafafa' }}>
+        {showSidePanel&&(
+          <div style={{width:300,borderLeft:`1px solid ${border}`,padding:12,display:'flex',flexDirection:'column',gap:8,background:D?'#080808':'#fafafa'}}>
 
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-<div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>USDC BALANCE</div>
-              {balanceLoading ? <div style={{ height:28, width:80, background:D?'#1a1a1a':'#e8e8e8', borderRadius:6, animation:'pulse 1.5s infinite' }}/> : (
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
+              <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:3}}>USDC BALANCE</div>
+              {balanceLoading?<div style={{height:28,width:80,background:D?'#1a1a1a':'#e8e8e8',borderRadius:6,animation:'pulse 1.5s infinite'}}/>:(
                 <>
-                  <div style={{ fontSize:22, fontWeight:300, color:text, letterSpacing:'-1px' }}>${balanceFormatted}</div>
-                  <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
+                  <div style={{fontSize:22,fontWeight:300,color:text,letterSpacing:'-1px'}}>${balanceFormatted}</div>
+                  <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,marginTop:2}}>Arc Testnet · Live</div>
                 </>
               )}
             </div>
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>EURC BALANCE</div>
-              <div style={{ fontSize:22, fontWeight:300, color:'#facc15', letterSpacing:'-1px' }}>€0.00</div>
-              <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
-            </div>
-            {/* My Profile / Create My Profile */}
-            {xUser ? (
-              <Link href={`/u/${xUser.username.toLowerCase()}`} style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 10px', background:'#1a1500', border:'1px solid #c9a84c44', borderRadius:10, textDecoration:'none' }}>
-                {xUser.avatar && <img src={xUser.avatar} alt="" style={{ width:24, height:24, borderRadius:'50%', border:'1px solid #c9a84c33' }}/>}
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:11, fontWeight:800, color:'#c9a84c' }}>My Arc Profile</div>
-                  <div style={{ fontSize:9, color:'#555' }}>/u/{xUser.username.toLowerCase()}</div>
-                </div>
-                <span style={{ fontSize:11, color:'#c9a84c' }}>↗</span>
-              </Link>
-            ) : (
-              <a href="/api/auth" style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 10px', background:'#0a1628', border:'1px solid #1e3a5f', borderRadius:10, textDecoration:'none' }}>
-                <SweepIcon short="X" color="#60a5fa" bg="#0a1628" dark="#0d2040" size={20}/>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:11, fontWeight:800, color:'#60a5fa' }}>Create My Profile</div>
-                  <div style={{ fontSize:9, color:'#1e3a5f' }}>Login with X to get your link</div>
-                </div>
-              </a>
-            )}
 
-            {/* Challenge widget */}
-            <div style={{ background:card, border:'2px solid #c9a84c33', borderRadius:12, padding:'11px 12px', position:'relative', overflow:'hidden' }}>
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg,#c9a84c,#4ade80,#c9a84c)' }}/>
-              <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, letterSpacing:'.4px', marginBottom:6 }}>CHALLENGE A FRIEND</div>
-              <div style={{ fontSize:11, color:text, fontWeight:600, marginBottom:3 }}>USDC Tetris Bet</div>
-              <div style={{ fontSize:10, color:muted, marginBottom:8 }}>Set a target → friend plays → winner gets USDC!</div>
-              <Link href="/game" style={{ display:'block', padding:'7px 0', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', borderRadius:8, fontSize:11, fontWeight:800, cursor:'pointer', textAlign:'center', textDecoration:'none' }}>
-                Create Challenge →
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
+              <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:3}}>EURC BALANCE</div>
+              <div style={{fontSize:22,fontWeight:300,color:'#facc15',letterSpacing:'-1px'}}>€0.00</div>
+              <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,marginTop:2}}>Arc Testnet · Live</div>
+            </div>
+
+            {/* CHALLENGE WIDGET */}
+            <div style={{background:card,border:'2px solid #c9a84c55',borderRadius:12,padding:'11px 12px',position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(90deg,#c9a84c,#4ade80,#c9a84c)'}}/>
+              <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,letterSpacing:'.4px',marginBottom:6}}>🏆 CHALLENGE A FRIEND</div>
+              <div style={{fontSize:11,color:text,fontWeight:600,marginBottom:3}}>USDC Tetris Bet</div>
+              <div style={{fontSize:10,color:muted,marginBottom:8}}>Set a target → friend plays → winner gets USDC!</div>
+              <Link href="/game"
+                style={{display:'block',padding:'7px 0',background:'linear-gradient(135deg,#c9a84c,#a07830)',color:'#000',border:'none',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer',textAlign:'center',textDecoration:'none'}}>
+                🎮 Create Challenge →
               </Link>
             </div>
 
-            {/* Features */}
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>FEATURES</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                {FEATURES.map(f => (
-                  <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', background:D?f.bg:(f as any).lightBg||f.bg, border:`1px solid ${D?f.border:(f as any).lightBorder||f.border}`, borderRadius:8, textDecoration:'none' }}>
-                    <SweepIcon short={f.short} color={f.color} bg={D?f.bg:(f as any).lightBg||f.bg} dark={f.dark} size={20}/>
-                    <span style={{ fontSize:11, fontWeight:600, color:f.color }}>{f.label}</span>
-                    <span style={{ marginLeft:'auto', fontSize:10, color:muted }}>↗</span>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
+              <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:8}}>FEATURES</div>
+              {xUser?(
+                <a href={`/u/${xUser.username.toLowerCase()}`}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',background:'linear-gradient(135deg,#1a1500,#0a0a00)',border:'1px solid #c9a84c55',borderRadius:10,textDecoration:'none',marginBottom:6}}>
+                  {xUser.avatar&&<img src={xUser.avatar} alt="" style={{width:20,height:20,borderRadius:'50%',border:'1px solid #c9a84c44'}}/>}
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:'#c9a84c'}}>My Arc Profile</div>
+                    <div style={{fontSize:9,color:'#555'}}>arc-payouts.vercel.app/u/{xUser.username.toLowerCase()}</div>
+                  </div>
+                  <span style={{fontSize:10,color:'#c9a84c'}}>↗</span>
+                </a>
+              ):(
+                <a href="/api/auth"
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:10,textDecoration:'none',marginBottom:6}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:'#60a5fa'}}>Create My Profile</div>
+                    <div style={{fontSize:9,color:'#555'}}>Login with X to get your link</div>
+                  </div>
+                </a>
+              )}
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {QUICK_LINKS.map(l=>(
+                  <Link key={l.href} href={l.href}
+                    style={{display:'flex',alignItems:'center',gap:7,padding:'7px 8px',background:l.bg,border:`1px solid ${l.border}`,borderRadius:8,textDecoration:'none'}}>
+                    <span style={{fontSize:13}}>{l.emoji}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:l.color}}>{l.label}</span>
+                    <span style={{marginLeft:'auto',fontSize:10,color:muted}}>↗</span>
                   </Link>
                 ))}
               </div>
             </div>
 
-            {/* Analytics */}
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>ANALYTICS</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                <div style={{ background:field, borderRadius:8, padding:8 }}>
-                  <div style={{ fontSize:9, color:muted }}>Total sent</div>
-                  <div style={{ fontSize:14, fontWeight:700, color:'#c9a84c' }}>${totalPaid.toFixed(2)}</div>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
+              <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:8}}>ANALYTICS</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:8}}>
+                <div style={{background:field,borderRadius:8,padding:8}}>
+                  <div style={{fontSize:9,color:muted}}>Total sent</div>
+                  <div style={{fontSize:14,fontWeight:700,color:'#c9a84c'}}>${totalPaid.toFixed(2)}</div>
                 </div>
-                <div style={{ background:field, borderRadius:8, padding:8 }}>
-                  <div style={{ fontSize:9, color:muted }}>Transactions</div>
-                  <div style={{ fontSize:14, fontWeight:700, color:text }}>{transactions.length}</div>
+                <div style={{background:field,borderRadius:8,padding:8}}>
+                  <div style={{fontSize:9,color:muted}}>Transactions</div>
+                  <div style={{fontSize:14,fontWeight:700,color:text}}>{transactions.length}</div>
                 </div>
               </div>
             </div>
 
-            {/* Tools */}
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>TOOLS</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px'}}>
+              <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px',marginBottom:8}}>TOOLS</div>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
                 {[
-                  { href:'https://faucet.circle.com', title:'Get Test USDC', sub:'faucet.circle.com', gold:true },
-                  { href:'https://thirdweb.com/arc-testnet', title:'Network Setup', sub:'Arc Testnet', gold:false },
-                  { href:'https://testnet.arcscan.app', title:'ArcScan Explorer', sub:'Track transactions', gold:false },
-                ].map(item => (
+                  {href:'https://faucet.circle.com',emoji:'🚰',title:'Get Test USDC',sub:'faucet.circle.com',gold:true},
+                  {href:'https://thirdweb.com/arc-testnet',emoji:'⚙️',title:'Network Setup',sub:'Arc Testnet',gold:false},
+                  {href:'https://testnet.arcscan.app',emoji:'🔍',title:'ArcScan Explorer',sub:'Track transactions',gold:false},
+                ].map(item=>(
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', border:`1px solid ${item.gold?'#2a2500':border}`, borderRadius:8, textDecoration:'none', background:item.gold?D?'#1a1500':'#fef9ec':D?'#080808':'#f5f5f5' }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:10, fontWeight:600, color:item.gold?'#c9a84c':text }}>{item.title}</div>
-                      <div style={{ fontSize:9, color:muted }}>{item.sub}</div>
+                    style={{display:'flex',alignItems:'center',gap:7,padding:'7px 8px',border:'1px solid',borderRadius:8,textDecoration:'none',
+                      background:item.gold?D?'#1a1500':'#fef9ec':D?'#080808':'#f5f5f5',
+                      borderColor:item.gold?'#2a2500':border}}>
+                    <span style={{fontSize:12}}>{item.emoji}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,fontWeight:600,color:item.gold?'#c9a84c':text}}>{item.title}</div>
+                      <div style={{fontSize:9,color:muted}}>{item.sub}</div>
                     </div>
-                    <span style={{ fontSize:10, color:subtle }}>↗</span>
+                    <span style={{fontSize:10,color:subtle}}>↗</span>
                   </a>
                 ))}
               </div>
+            </div>
+
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:'11px 12px',flex:1}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <div style={{fontSize:9,color:muted,fontWeight:700,letterSpacing:'.4px'}}>ACTIVITY</div>
+                <Link href="/history" style={{fontSize:10,color:subtle,textDecoration:'none'}}>All →</Link>
+              </div>
+              {transactions.length===0?(
+                <div style={{textAlign:'center',fontSize:11,padding:'10px 0',color:subtle}}>No transactions yet</div>
+              ):(
+                <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                  {transactions.slice(0,4).map(t=>(
+                    <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6}}>
+                        <div style={{width:20,height:20,borderRadius:6,background:'#1a1500',color:'#c9a84c',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}>↗</div>
+                        <div style={{fontSize:11,color:text}}>{t.name||'Send'}</div>
+                      </div>
+                      <div style={{fontSize:11,fontWeight:700,color:'#c9a84c'}}>-{t.amount}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
@@ -860,4 +902,7 @@ export default function Home() {
     </div>
   )
 }
+
+
+
 
