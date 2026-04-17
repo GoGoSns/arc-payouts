@@ -84,6 +84,17 @@ export default function Home() {
   const [swapPaying, setSwapPaying] = useState(false)
   const [swapResult, setSwapResult] = useState<{txHash:string,explorerUrl?:string}|null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [xUser, setXUser] = useState<{id:string,username:string,name:string,avatar:string}|null>(null)
+
+  useEffect(() => {
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('arc_x_user='))
+    if (cookie) {
+      try {
+        const val = decodeURIComponent(cookie.split('=').slice(1).join('='))
+        setXUser(JSON.parse(val))
+      } catch {}
+    }
+  }, [])
 
   const D = darkMode
   const bg = D?'#080808':'#f8f9fa'
@@ -454,7 +465,15 @@ export default function Home() {
             )}
           </div>
           <button onClick={()=>setDarkMode(!D)} style={{fontSize:12,padding:'3px 7px',background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:6,cursor:'pointer'}}>{D?'☀️':'🌙'}</button>
-          <a href="/api/auth" style={{fontSize:10,padding:'3px 9px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:6,color:'#60a5fa',fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',gap:4}}><svg width="10" height="10" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Login</a><button onClick={()=>disconnect()} style={{fontSize:10,color:'#666',cursor:'pointer',background:'none',border:'none'}}>Disconnect</button>
+          {xUser ? (
+  <div style={{display:'flex',alignItems:'center',gap:6,padding:'3px 9px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:20}}>
+    {xUser.avatar && <img src={xUser.avatar} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>}
+    <span style={{fontSize:10,color:'#60a5fa',fontWeight:700}}>@{xUser.username}</span>
+    <button onClick={()=>{document.cookie='arc_x_user=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';setXUser(null)}} style={{fontSize:9,color:'#444',background:'none',border:'none',cursor:'pointer'}}>✕</button>
+  </div>
+) : (
+  <a href="/api/auth" style={{fontSize:10,padding:'3px 9px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:6,color:'#60a5fa',fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',gap:4}}><svg width="10" height="10" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Login</a>
+)}<button onClick={()=>disconnect()} style={{fontSize:10,color:'#666',cursor:'pointer',background:'none',border:'none'}}>Disconnect</button>
           <button style={{display:'flex',flexDirection:'column',gap:3,padding:6,background:'none',border:'none',cursor:'pointer'}} onClick={()=>setMobileMenuOpen(!mobileMenuOpen)}>
             <span style={{display:'block',width:16,height:2,background:muted}}></span>
             <span style={{display:'block',width:16,height:2,background:muted,opacity:mobileMenuOpen?0:1}}></span>
