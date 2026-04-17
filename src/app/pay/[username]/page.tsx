@@ -80,9 +80,6 @@ export default function PayLink({ params }: { params: Promise<{ username: string
           </div>
         ) : !walletAddress ? (
           <div style={{ textAlign:'center', maxWidth:360 }}>
-            <div style={{ width:64, height:64, borderRadius:'50%', background:'linear-gradient(135deg,#c9a84c,#a07830)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, fontWeight:800, color:'#000', margin:'0 auto 16px' }}>
-              {handle[0].toUpperCase()}
-            </div>
             <div style={{ fontSize:13, color:'#444', marginBottom:20 }}>This pay link hasn't been set up yet.</div>
             <Link href="/create-pay-link" style={{ display:'inline-block', padding:'11px 24px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', borderRadius:12, fontSize:13, fontWeight:800, textDecoration:'none' }}>
               Create Your Pay Link →
@@ -102,7 +99,6 @@ export default function PayLink({ params }: { params: Promise<{ username: string
                 {handle[0].toUpperCase()}
               </div>
               <div style={{ fontSize:20, fontWeight:800 }}>{name}</div>
-              <div style={{ fontSize:12, color:'#c9a84c', marginTop:3 }}>arc-payouts.vercel.app/pay/yourname</div>
             </div>
 
             <div style={{ fontSize:9, fontWeight:700, letterSpacing:'.5px', color:'#444', marginBottom:6 }}>YOU PAY</div>
