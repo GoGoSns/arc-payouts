@@ -12,17 +12,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const clientId = process.env.TWITTER_CLIENT_ID!
-    const clientSecret = process.env.TWITTER_CLIENT_SECRET!
     const redirectUri = `${appUrl}/api/auth/callback`
 
-    // client_id ve client_secret body'de gönder (header'da değil)
+    // Native App - secret yok, sadece client_id
     const body = new URLSearchParams({
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
       code_verifier: 'challenge',
       client_id: clientId,
-      client_secret: clientSecret,
     })
 
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
