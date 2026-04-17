@@ -15,11 +15,21 @@ export default function PayPage({ params }: { params: Promise<{ username: string
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
-    if (profiles[handle]) {
-      setWalletAddress(profiles[handle].address || '')
-      setXProfile({ name: profiles[handle].name || handle, avatar: profiles[handle].avatar || '' })
-    }
+    fetch(`/api/profile?handle=${handle}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.address) {
+          setWalletAddress(data.address)
+          setXProfile({ name: data.name || handle, avatar: data.avatar || '' })
+        }
+      })
+      .catch(() => {
+        const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
+        if (profiles[handle]) {
+          setWalletAddress(profiles[handle].address || '')
+          setXProfile({ name: profiles[handle].name || handle, avatar: profiles[handle].avatar || '' })
+        }
+      })
   }, [handle])
 
   const sendUSDC = async () => {

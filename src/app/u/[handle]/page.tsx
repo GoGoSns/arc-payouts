@@ -22,16 +22,31 @@ export default function ArcProfile({ params }: { params: Promise<{ handle: strin
         if (user.username.toLowerCase() === handle) setIsOwner(true)
       } catch {}
     }
-    const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
-    if (profiles[handle]) setWalletAddress(profiles[handle].address || '')
+    fetch(`/api/profile?handle=${handle}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.address) setWalletAddress(data.address) })
+      .catch(() => {
+        const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
+        if (profiles[handle]) setWalletAddress(profiles[handle].address || '')
+      })
   }, [handle])
 
-  const saveWallet = () => {
+  const saveWallet = async () => {
     if (!walletAddress) return
-    const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
-    profiles[handle] = { address: walletAddress, username: xUser?.username, avatar: xUser?.avatar, name: xUser?.name }
-    localStorage.setItem('arc_profiles', JSON.stringify(profiles))
-    alert('Saved!')
+    try {
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle, address: walletAddress, name: xUser?.name, avatar: xUser?.avatar, username: xUser?.username })
+      })
+      // localStorage'a da kaydet (hızlı okuma için)
+      const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
+      profiles[handle] = { address: walletAddress, name: xUser?.name, avatar: xUser?.avatar, username: xUser?.username }
+      localStorage.setItem('arc_profiles', JSON.stringify(profiles))
+      alert('Profile saved!')
+    } catch (e) {
+      alert('Error saving profile')
+    }
   }
 
   const copyAddress = () => {
