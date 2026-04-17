@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
-  const state = searchParams.get('state')
   const error = searchParams.get('error')
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://arc-payouts.vercel.app'
@@ -16,35 +15,20 @@ export async function GET(request: NextRequest) {
     const clientSecret = process.env.TWITTER_CLIENT_SECRET!
     const redirectUri = `${appUrl}/api/auth/callback`
 
-    let codeVerifier = ''
-    if (state) {
-      try {
-        const decoded = Buffer.from(state, 'base64url').toString('utf-8')
-        codeVerifier = decoded.split(':')[0]
-      } catch {
-        try {
-          const decoded = Buffer.from(state, 'base64').toString('utf-8')
-          codeVerifier = decoded.split(':')[0]
-        } catch {
-          codeVerifier = ''
-        }
-      }
-    }
-
-    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-
+    // client_id ve client_secret body'de gönder (header'da değil)
     const body = new URLSearchParams({
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
-      code_verifier: codeVerifier || 'challenge',
+      code_verifier: 'challenge',
+      client_id: clientId,
+      client_secret: clientSecret,
     })
 
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
       },
       body: body.toString(),
     })
