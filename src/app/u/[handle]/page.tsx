@@ -43,7 +43,8 @@ export default function ArcProfile({ params }: { params: Promise<{ handle: strin
       const profiles = JSON.parse(localStorage.getItem('arc_profiles') || '{}')
       profiles[handle] = { address: walletAddress, name: xUser?.name, avatar: xUser?.avatar, username: xUser?.username }
       localStorage.setItem('arc_profiles', JSON.stringify(profiles))
-      alert('Profile saved!')
+      const shareText = `I just created my Arc Payment Profile!\n\nSend me USDC instantly 👇\narc-payouts.vercel.app/u/${handle}\n\n#ArcNetwork #USDC #Web3`
+window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank')
     } catch (e) {
       alert('Error saving profile')
     }
