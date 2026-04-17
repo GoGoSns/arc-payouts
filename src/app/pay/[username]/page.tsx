@@ -103,7 +103,7 @@ export default function PayLink({ params }: { params: Promise<{ username: string
                 {handle[0].toUpperCase()}
               </div>
               <div style={{ fontSize:20, fontWeight:800 }}>{name}</div>
-              <div style={{ fontSize:12, color:'#c9a84c', marginTop:3 }}>arc-payouts.vercel.app/pay/{handle}</div>
+              <div style={{ fontSize:12, color:'#c9a84c', marginTop:3 }}>arc-payouts.vercel.app/pay/yourname</div>
             </div>
 
             <div style={{ fontSize:9, fontWeight:700, letterSpacing:'.5px', color:'#444', marginBottom:6 }}>YOU PAY</div>
