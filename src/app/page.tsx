@@ -139,7 +139,7 @@ export default function Home() {
     fetchLiveTxs()
     const interval = setInterval(fetchLiveTxs, 10000)
     return () => clearInterval(interval)
-  }, [isConnected, address, xUser])
+  }, [isConnected, address])
 
   const fetchLiveTxs = async () => {
     try {
