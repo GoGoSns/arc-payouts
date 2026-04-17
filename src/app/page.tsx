@@ -232,7 +232,7 @@ export default function Home() {
       const {createViemAdapterFromProvider} = await import('@circle-fin/adapter-viem-v2')
       const kit = new AppKit()
       const adapter = await createViemAdapterFromProvider({provider:(window as any).ethereum})
-      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn as any,config:{kitKey:process.env.NEXT_PUBLIC_CIRCLE_KIT_KEY||''} as any,config:{slippageBps:Math.round(parseFloat(swapSlippage)*100)}})
+      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn as any,config:{kitKey:process.env.NEXT_PUBLIC_CIRCLE_KIT_KEY||'',slippageBps:Math.round(parseFloat(swapSlippage)*100)} as any})
       const txHash = (res as any)?.hash||(res as any)?.txHash||''
       await saveTransaction(`Swap ${swapTokenIn}→${swapTokenOut}`,address||'',swapAmountIn,txHash,`https://testnet.arcscan.app/tx/${txHash}`,'Swap')
       setSwapResult({txHash,explorerUrl:`https://testnet.arcscan.app/tx/${txHash}`})
