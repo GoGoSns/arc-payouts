@@ -83,7 +83,6 @@ export default function PayLink({ params }: { params: Promise<{ username: string
             <div style={{ width:64, height:64, borderRadius:'50%', background:'linear-gradient(135deg,#c9a84c,#a07830)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, fontWeight:800, color:'#000', margin:'0 auto 16px' }}>
               {handle[0].toUpperCase()}
             </div>
-            <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>@{handle}</div>
             <div style={{ fontSize:13, color:'#444', marginBottom:20 }}>This pay link hasn't been set up yet.</div>
             <Link href="/create-pay-link" style={{ display:'inline-block', padding:'11px 24px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', borderRadius:12, fontSize:13, fontWeight:800, textDecoration:'none' }}>
               Create Your Pay Link →
