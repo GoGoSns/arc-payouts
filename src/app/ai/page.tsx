@@ -38,6 +38,8 @@ const QUICK_SUGGESTIONS = [
 export default function AIPage() {
   const { address, isConnected } = useAccount()
   const { connect } = useConnect()
+  const { data: balanceData } = useBalance({ address })
+  const realBalance = balanceData ? (Number(balanceData.value) / 1e18).toFixed(2) : '0.00'
   const [messages, setMessages] = useState<Message[]>([{
     id: '1',
     role: 'assistant',
@@ -81,7 +83,7 @@ export default function AIPage() {
 
       const systemPrompt = `You are Arc AI, a friendly DeFi payment assistant for Arc Global Payouts on Arc Network by GoGo.
 User wallet: ${address || 'Not connected'}
-USDC Balance: $132.00 (Arc Testnet)
+USDC Balance: $${realBalance} (Arc Testnet)
 Total sent this session: $${totalSent.toFixed(2)} USDC
 Recent transactions: ${recentTxs || 'None'}
 Features: Send USDC, Bridge (ETH/ARB/OP/Base→Arc), Swap (USDC↔EURC↔ETH), Batch, NFT receipts, Payment links, Flappy USDC game.

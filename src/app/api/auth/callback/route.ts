@@ -4,7 +4,6 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
   const error = searchParams.get('error')
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://arc-payouts.vercel.app'
 
   if (error) return NextResponse.redirect(`${appUrl}?auth_error=${error}`)
@@ -14,7 +13,6 @@ export async function GET(request: NextRequest) {
     const clientId = process.env.TWITTER_CLIENT_ID!
     const redirectUri = `${appUrl}/api/auth/callback`
 
-    // Native App - secret yok, sadece client_id
     const body = new URLSearchParams({
       code,
       grant_type: 'authorization_code',
@@ -25,9 +23,7 @@ export async function GET(request: NextRequest) {
 
     const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     })
 
@@ -54,7 +50,8 @@ export async function GET(request: NextRequest) {
     const userData = await userResponse.json()
     const user = userData.data
 
-    const response = NextResponse.redirect(`${appUrl}?auth_success=true`)
+    // Profil sayfasına yönlendir
+    const response = NextResponse.redirect(`${appUrl}/u/${user.username.toLowerCase()}`)
 
     response.cookies.set(
       'arc_x_user',
