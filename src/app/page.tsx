@@ -541,7 +541,7 @@ export default function Home() {
       <div style={{ display:'flex', flex:1 }}>
 
         {/* MAIN CONTENT */}
-        <div style={{ flex:1, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'20px 16px' }}>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 16px' }}>
 
           {/* SEND TAB */}
           {tab==='send' && (
@@ -756,9 +756,13 @@ export default function Home() {
 
         {/* RIGHT PANEL */}
         {tab !== 'batch' && (
-          <div style={{ width:230, borderLeft:`1px solid ${border}`, padding:12, display:'flex', flexDirection:'column', gap:8, background:D?'#080808':'#fafafa' }}>
+          <div style={{ width:300, borderLeft:`1px solid ${border}`, padding:12, display:'flex', flexDirection:'column', gap:8, background:D?'#080808':'#fafafa' }}>
 
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+<div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
               <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>USDC BALANCE</div>
               {balanceLoading ? <div style={{ height:28, width:80, background:D?'#1a1a1a':'#e8e8e8', borderRadius:6, animation:'pulse 1.5s infinite' }}/> : (
                 <>
