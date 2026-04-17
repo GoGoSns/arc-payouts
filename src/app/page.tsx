@@ -754,7 +754,11 @@ export default function Home() {
                 </>
               )}
             </div>
-
+            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
+              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>EURC BALANCE</div>
+              <div style={{ fontSize:22, fontWeight:300, color:'#facc15', letterSpacing:'-1px' }}>€0.00</div>
+              <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
+            </div>
             {/* My Profile / Create My Profile */}
             {xUser ? (
               <Link href={`/u/${xUser.username.toLowerCase()}`} style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 10px', background:'#1a1500', border:'1px solid #c9a84c44', borderRadius:10, textDecoration:'none' }}>
