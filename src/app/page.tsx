@@ -454,7 +454,7 @@ export default function Home() {
             )}
           </div>
           <button onClick={()=>setDarkMode(!D)} style={{fontSize:12,padding:'3px 7px',background:D?'#111':'#f5f5f5',border:`1px solid ${border}`,borderRadius:6,cursor:'pointer'}}>{D?'☀️':'🌙'}</button>
-          <button onClick={()=>disconnect()} style={{fontSize:10,color:'#666',cursor:'pointer',background:'none',border:'none'}}>Disconnect</button>
+          <a href="/api/auth" style={{fontSize:10,padding:'3px 9px',background:'#0a1628',border:'1px solid #1e3a5f',borderRadius:6,color:'#60a5fa',fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',gap:4}}><svg width="10" height="10" viewBox="0 0 24 24" fill="#60a5fa"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Login</a><button onClick={()=>disconnect()} style={{fontSize:10,color:'#666',cursor:'pointer',background:'none',border:'none'}}>Disconnect</button>
           <button style={{display:'flex',flexDirection:'column',gap:3,padding:6,background:'none',border:'none',cursor:'pointer'}} onClick={()=>setMobileMenuOpen(!mobileMenuOpen)}>
             <span style={{display:'block',width:16,height:2,background:muted}}></span>
             <span style={{display:'block',width:16,height:2,background:muted,opacity:mobileMenuOpen?0:1}}></span>
