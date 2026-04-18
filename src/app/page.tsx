@@ -545,7 +545,7 @@ export default function Home() {
 
           {/* SEND TAB */}
           {tab==='send' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                 <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted }}>YOU PAY</label>
                 <span style={{ fontSize:10, color:muted }}>Balance: ${balanceFormatted||'—'}</span>
@@ -589,7 +589,7 @@ export default function Home() {
 
           {/* BRIDGE TAB */}
           {tab==='bridge' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>FROM</label>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:12 }}>
                 {CHAINS.filter(c=>c.id!==bridgeTo).map(chain => (
@@ -634,7 +634,7 @@ export default function Home() {
 
           {/* SWAP TAB */}
           {tab==='swap' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU PAY</label>
               <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -676,7 +676,7 @@ export default function Home() {
 
           {/* NFT TAB */}
           {tab==='nft' && (
-            <div style={{ width:'100%', maxWidth:440, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
               <h2 style={{ fontSize:16, fontWeight:700, color:text, marginBottom:14 }}>NFT Receipt</h2>
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 {nftImagePreview && <img src={nftImagePreview} alt="" style={{ width:60, height:60, borderRadius:10, objectFit:'cover', border:`1px solid ${border}` }}/>}
@@ -859,6 +859,7 @@ export default function Home() {
     </div>
   )
 }
+
 
 
 
