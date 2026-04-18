@@ -541,7 +541,7 @@ export default function Home() {
       <div style={{ display:'flex', flex:1 }}>
 
         {/* MAIN CONTENT */}
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 16px', paddingTop:'60px' }}>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 16px' }}>
 
           {/* SEND TAB */}
           {tab==='send' && (
@@ -859,6 +859,7 @@ export default function Home() {
     </div>
   )
 }
+
 
 
 
