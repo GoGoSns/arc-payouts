@@ -170,17 +170,11 @@ export default function Home() {
     const stored = localStorage.getItem('arc_transactions')
     const existing = stored ? JSON.parse(stored) : []
     localStorage.setItem('arc_transactions', JSON.stringify([tx,...existing]))
-    // Redis'e kaydet (live feed için)
     try {
       await fetch('/api/live-txs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handle: xUser?.username || addr.slice(0,6),
-          to: addr,
-          amount,
-          type,
-        })
+        body: JSON.stringify({ handle: xUser?.username || addr.slice(0,6), to: addr, amount, type })
       })
     } catch {}
   }
@@ -232,7 +226,7 @@ export default function Home() {
       const {createViemAdapterFromProvider} = await import('@circle-fin/adapter-viem-v2')
       const kit = new AppKit()
       const adapter = await createViemAdapterFromProvider({provider:(window as any).ethereum})
-      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn,config:{slippageBps:Math.round(parseFloat(swapSlippage)*100)}})
+      const res = await kit.swap({from:{adapter,chain:'Arc_Testnet' as never},tokenIn:swapTokenIn,tokenOut:swapTokenOut,amountIn:swapAmountIn as any,config:{kitKey:process.env.NEXT_PUBLIC_CIRCLE_KIT_KEY||'',slippageBps:Math.round(parseFloat(swapSlippage)*100)} as any})
       const txHash = (res as any)?.hash||(res as any)?.txHash||''
       await saveTransaction(`Swap ${swapTokenIn}→${swapTokenOut}`,address||'',swapAmountIn,txHash,`https://testnet.arcscan.app/tx/${txHash}`,'Swap')
       setSwapResult({txHash,explorerUrl:`https://testnet.arcscan.app/tx/${txHash}`})
@@ -320,12 +314,19 @@ export default function Home() {
 
   // ============ LOGIN SAYFASI ============
   if (!isConnected) {
-    const tickerItems = liveTxs.length > 0 ? liveTxs : [
+    const defaultTickers = [
       { id:'1', handle:'GoGo', to:'0x1234', amount:'50', type:'Send', time:'2s' },
       { id:'2', handle:'alice', to:'0x5678', amount:'1000', type:'Bridge', time:'14s' },
       { id:'3', handle:'crypto_joe', to:'batch', amount:'5400', type:'Batch', time:'1m' },
       { id:'4', handle:'defi_sara', to:'EURC', amount:'800', type:'Swap', time:'2m' },
+      { id:'5', handle:'web3_mike', to:'0xabcd', amount:'250', type:'Send', time:'3m' },
+      { id:'6', handle:'nft_queen', to:'0xef01', amount:'3200', type:'Batch', time:'5m' },
+      { id:'7', handle:'arc_builder', to:'EURC', amount:'150', type:'Swap', time:'7m' },
+      { id:'8', handle:'defi_legend', to:'0x2345', amount:'900', type:'Bridge', time:'9m' },
+      { id:'9', handle:'usdc_king', to:'0x6789', amount:'4500', type:'Send', time:'11m' },
+      { id:'10', handle:'chain_hopper', to:'0xcdef', amount:'700', type:'Bridge', time:'14m' },
     ]
+    const tickerItems = liveTxs.length > 0 ? [...liveTxs, ...defaultTickers] : defaultTickers
 
     return (
       <div style={{ minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:'-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
@@ -352,8 +353,8 @@ export default function Home() {
 
         {/* LIVE TICKER */}
         <div style={{ borderBottom:'1px solid #141414', background:'#080808', overflow:'hidden', padding:'7px 0', position:'relative', zIndex:10 }}>
-          <div style={{ display:'flex', gap:32, whiteSpace:'nowrap', animation:'ticker 20s linear infinite', width:'max-content' }}>
-            {[...tickerItems,...tickerItems].map((t,i) => (
+          <div style={{ display:'flex', gap:32, whiteSpace:'nowrap', animation:'ticker 30s linear infinite', width:'max-content' }}>
+            {[...tickerItems,...tickerItems,...tickerItems].map((t,i) => (
               <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:8, fontSize:11, color:'#444' }}>
                 <span style={{ width:5, height:5, borderRadius:'50%', background: t.type==='Bridge'?'#60a5fa':t.type==='Swap'?'#f59e0b':t.type==='Batch'?'#a78bfa':'#4ade80', display:'inline-block' }}/>
                 <strong style={{ color:'#fff' }}>@{t.handle}</strong>
@@ -368,7 +369,6 @@ export default function Home() {
         {/* HERO */}
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'36px 24px 24px', textAlign:'center', position:'relative', zIndex:10 }}>
 
-          {/* Büyük logo */}
           <div style={{ position:'relative', width:88, height:88, margin:'0 auto 28px', animation:'float 4s ease infinite' }}>
             <div style={{ position:'absolute', inset:-4, borderRadius:26, background:'conic-gradient(transparent 0deg,#c9a84c 70deg,transparent 130deg)', animation:'sweep 2.5s linear infinite' }}/>
             <div style={{ position:'absolute', inset:2, background:'#111', borderRadius:22, display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #1e1e1e' }}>
@@ -392,7 +392,6 @@ export default function Home() {
             No banks. No delays. No limits.<br/>Just your wallet and a @handle.
           </p>
 
-          {/* Stats — gerçek veriler */}
           <div style={{ display:'flex', gap:0, marginBottom:32, background:'#0e0e0e', border:'1px solid #1a1a1a', borderRadius:14, overflow:'hidden', animation:'fadeUp .5s .15s ease both' }}>
             {[
               { val:'$0', label:'FEES', color:'#4ade80' },
@@ -407,14 +406,12 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Connect butonu — parlayan border */}
           <button
             onClick={() => connect({ connector: injected() })}
             style={{ padding:'15px 52px', background:'linear-gradient(135deg,#c9a84c,#a07830)', color:'#000', border:'none', borderRadius:16, fontSize:15, fontWeight:800, cursor:'pointer', marginBottom:28, animation:'breathe 2.5s ease infinite', letterSpacing:.3 }}>
             Connect Wallet →
           </button>
 
-          {/* Steps */}
           <div style={{ display:'flex', gap:6, marginBottom:28, animation:'fadeUp .5s .25s ease both' }}>
             {[
               { n:'1', title:'Add Arc Testnet', sub:'MetaMask ↗', href:'https://thirdweb.com/arc-testnet' },
@@ -433,7 +430,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Feature pills */}
           <div style={{ display:'flex', gap:5, flexWrap:'wrap', justifyContent:'center', animation:'fadeUp .5s .3s ease both' }}>
             {FEATURES.map(f => (
               <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 11px', borderRadius:20, border:`1px solid ${f.border}`, background:f.bg, textDecoration:'none' }}>
@@ -488,8 +484,6 @@ export default function Home() {
             <span style={{ fontSize:10, color:muted }}>{address?.slice(0,6)}...{address?.slice(-4)}</span>
           </div>
           <Link href="/history" style={{ fontSize:10, color:muted, textDecoration:'none', padding:'3px 8px', background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:6 }}>History</Link>
-
-          {/* X kullanıcısı */}
           {xUser ? (
             <div style={{ display:'flex', alignItems:'center', gap:5, padding:'3px 9px', background:'#0a1628', border:'1px solid #1e3a5f', borderRadius:20 }}>
               {xUser.avatar && <img src={xUser.avatar} alt="" style={{ width:18, height:18, borderRadius:'50%' }}/>}
@@ -501,7 +495,6 @@ export default function Home() {
               Create My Profile
             </a>
           )}
-
           <button onClick={()=>setDarkMode(!D)} style={{ fontSize:11, padding:'3px 7px', background:D?'#111':'#f0f0f0', border:`1px solid ${border}`, borderRadius:6, cursor:'pointer', color:text }}>
             {D?'☀':'🌙'}
           </button>
@@ -512,7 +505,6 @@ export default function Home() {
       {/* FEATURE BAR */}
       <div style={{ borderBottom:`1px solid ${border}`, padding:'0 16px', overflowX:'auto', background:navBg }}>
         <div style={{ display:'flex', gap:6, minWidth:'max-content', padding:'10px 0', alignItems:'center' }}>
-          {/* Main tabs */}
           {(['send','batch','nft','bridge','swap'] as Tab[]).map((t,i) => {
             const labels = ['Send','Batch','NFT','Bridge','Swap']
             const shorts = ['S','B','N','Br','Sw']
@@ -525,10 +517,7 @@ export default function Home() {
               </button>
             )
           })}
-
           <div style={{ width:1, height:26, background:border, flexShrink:0, margin:'0 3px' }}/>
-
-          {/* Feature tabs */}
           {FEATURES.map(f => (
             <Link key={f.href} href={f.href} style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 13px', borderRadius:10, border:`1px solid ${f.border}`, background:f.bg, textDecoration:'none', flexShrink:0 }}>
               <SweepIcon short={f.short} color={f.color} bg={f.bg} dark={f.dark} size={22}/>
@@ -545,42 +534,41 @@ export default function Home() {
 
           {/* SEND TAB */}
           {tab==='send' && (
-            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:24 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                 <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted }}>YOU PAY</label>
                 <span style={{ fontSize:10, color:muted }}>Balance: ${balanceFormatted||'—'}</span>
               </div>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:8 }}>
+              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'14px 16px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <input type="number" value={singleAmount} onChange={e=>setSingleAmount(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
-                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
-                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}/>
-                    <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                    style={{ fontSize:36, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
+                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'6px 13px', display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:'#6366f1' }}/>
+                    <span style={{ fontSize:13, fontWeight:700, color:text }}>USDC</span>
                   </div>
                 </div>
-                <div style={{ fontSize:10, color:subtle, marginTop:5 }}>Arc Testnet</div>
+                <div style={{ fontSize:11, color:subtle, marginTop:5 }}>Arc Testnet</div>
               </div>
-              {/* Quick amounts */}
-              <div style={{ display:'flex', gap:5, marginBottom:8 }}>
+              <div style={{ display:'flex', gap:6, marginBottom:10 }}>
                 {['10','25','50','100'].map(v => (
                   <button key={v} onClick={()=>setSingleAmount(v)}
-                    style={{ flex:1, padding:'5px 0', borderRadius:8, border:`1px solid ${singleAmount===v?'#c9a84c':border}`, background:singleAmount===v?'#1a1500':field, color:singleAmount===v?'#c9a84c':muted, fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                    style={{ flex:1, padding:'7px 0', borderRadius:8, border:`1px solid ${singleAmount===v?'#c9a84c':border}`, background:singleAmount===v?'#1a1500':field, color:singleAmount===v?'#c9a84c':muted, fontSize:12, fontWeight:700, cursor:'pointer' }}>
                     ${v}
                   </button>
                 ))}
               </div>
-              <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
-                <div style={{ width:28, height:28, background:D?'#080808':field, border:`1px solid ${border}`, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:subtle }}>↓</div>
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:10 }}>
+                <div style={{ width:30, height:30, background:D?'#080808':field, border:`1px solid ${border}`, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:subtle }}>↓</div>
               </div>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>TO</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:14 }}>
+              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'14px 16px', marginBottom:16 }}>
                 <input type="text" value={singleAddress} onChange={e=>setSingleAddress(e.target.value)} placeholder="Wallet address or @handle"
-                  style={{ fontSize:13, background:'transparent', border:'none', color:singleAddress?text:muted, outline:'none', width:'100%' }}/>
-                <div style={{ fontSize:10, color:subtle, marginTop:4 }}>Arc Testnet</div>
+                  style={{ fontSize:14, background:'transparent', border:'none', color:singleAddress?text:muted, outline:'none', width:'100%' }}/>
+                <div style={{ fontSize:11, color:subtle, marginTop:4 }}>Arc Testnet</div>
               </div>
               <button onClick={sendSingle} disabled={paying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:paying?'default':'pointer', background:paying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:paying?D?'#666':'#999':'#000' }}>
+                style={{ width:'100%', padding:14, borderRadius:12, fontWeight:800, fontSize:14, border:'none', cursor:paying?'default':'pointer', background:paying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:paying?D?'#666':'#999':'#000' }}>
                 {paying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>SENDING...</span>:'CONFIRM TRANSFER'}
               </button>
               {txResult && <TxBox result={txResult} amount={singleAmount} token="USDC"/>}
@@ -589,7 +577,7 @@ export default function Home() {
 
           {/* BRIDGE TAB */}
           {tab==='bridge' && (
-            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:24 }}>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>FROM</label>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:12 }}>
                 {CHAINS.filter(c=>c.id!==bridgeTo).map(chain => (
@@ -600,13 +588,13 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
+              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'14px 16px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <input type="number" value={bridgeAmount} onChange={e=>setBridgeAmount(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
-                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', display:'flex', alignItems:'center', gap:5 }}>
-                    <div style={{ width:7, height:7, borderRadius:'50%', background:'#6366f1' }}/>
-                    <span style={{ fontSize:12, fontWeight:700, color:text }}>USDC</span>
+                    style={{ fontSize:36, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
+                  <div style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'6px 13px', display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:'#6366f1' }}/>
+                    <span style={{ fontSize:13, fontWeight:700, color:text }}>USDC</span>
                   </div>
                 </div>
               </div>
@@ -615,7 +603,7 @@ export default function Home() {
                   style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
               </div>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:8 }}>TO</label>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:14 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:16 }}>
                 {CHAINS.filter(c=>c.id!==bridgeFrom).map(chain => (
                   <button key={chain.id} onClick={()=>setBridgeTo(chain.id)}
                     style={{ padding:'7px 4px', borderRadius:10, fontSize:10, fontWeight:600, border:'1px solid', cursor:'pointer', borderColor:bridgeTo===chain.id?'#c9a84c':border, color:bridgeTo===chain.id?'#c9a84c':muted, background:bridgeTo===chain.id?'#1a1500':field }}>
@@ -625,7 +613,7 @@ export default function Home() {
                 ))}
               </div>
               <button onClick={sendBridge} disabled={bridgePaying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:bridgePaying?'default':'pointer', background:bridgePaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:bridgePaying?D?'#666':'#999':'#000' }}>
+                style={{ width:'100%', padding:14, borderRadius:12, fontWeight:800, fontSize:14, border:'none', cursor:bridgePaying?'default':'pointer', background:bridgePaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:bridgePaying?D?'#666':'#999':'#000' }}>
                 {bridgePaying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>BRIDGING...</span>:'CONFIRM BRIDGE'}
               </button>
               {bridgeResult && <TxBox result={bridgeResult} amount={bridgeAmount} token="USDC"/>}
@@ -634,14 +622,14 @@ export default function Home() {
 
           {/* SWAP TAB */}
           {tab==='swap' && (
-            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:24 }}>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU PAY</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
+              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'14px 16px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <input type="number" value={swapAmountIn} onChange={e=>setSwapAmountIn(e.target.value)} placeholder="0"
-                    style={{ fontSize:32, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
+                    style={{ fontSize:36, fontWeight:300, flex:1, background:'transparent', border:'none', color:text, outline:'none', letterSpacing:'-1px' }}/>
                   <select value={swapTokenIn} onChange={e=>setSwapTokenIn(e.target.value)}
-                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
+                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'6px 13px', fontSize:13, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
                     {TOKENS.filter(t=>t!==swapTokenOut).map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
@@ -651,23 +639,23 @@ export default function Home() {
                   style={{ width:36, height:36, border:`1px solid ${border}`, borderRadius:'50%', background:card, fontSize:16, color:muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>⇅</button>
               </div>
               <label style={{ fontSize:9, fontWeight:700, letterSpacing:'.4px', color:muted, display:'block', marginBottom:6 }}>YOU RECEIVE</label>
-              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'12px 14px', marginBottom:10 }}>
+              <div style={{ background:field, border:`1px solid ${fieldBorder}`, borderRadius:14, padding:'14px 16px', marginBottom:10 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <span style={{ fontSize:32, fontWeight:300, flex:1, color:muted, letterSpacing:'-1px' }}>{swapAmountOut}</span>
+                  <span style={{ fontSize:36, fontWeight:300, flex:1, color:muted, letterSpacing:'-1px' }}>{swapAmountOut}</span>
                   <select value={swapTokenOut} onChange={e=>setSwapTokenOut(e.target.value)}
-                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'5px 11px', fontSize:12, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
+                    style={{ background:D?'#141414':'#f0f0f0', border:`1px solid ${border}`, borderRadius:20, padding:'6px 13px', fontSize:13, fontWeight:700, color:text, outline:'none', cursor:'pointer' }}>
                     {TOKENS.filter(t=>t!==swapTokenIn).map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:6, marginBottom:14 }}>
+              <div style={{ display:'flex', gap:6, marginBottom:16 }}>
                 {['0.5','1','3'].map(s => (
                   <button key={s} onClick={()=>setSwapSlippage(s)}
-                    style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:700, border:'1px solid', cursor:'pointer', borderColor:swapSlippage===s?'#c9a84c':border, color:swapSlippage===s?'#c9a84c':muted, background:swapSlippage===s?'#1a1500':field }}>{s}%</button>
+                    style={{ padding:'6px 14px', borderRadius:8, fontSize:12, fontWeight:700, border:'1px solid', cursor:'pointer', borderColor:swapSlippage===s?'#c9a84c':border, color:swapSlippage===s?'#c9a84c':muted, background:swapSlippage===s?'#1a1500':field }}>{s}%</button>
                 ))}
               </div>
               <button onClick={sendSwap} disabled={swapPaying}
-                style={{ width:'100%', padding:13, borderRadius:12, fontWeight:800, fontSize:13, border:'none', cursor:swapPaying?'default':'pointer', background:swapPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:swapPaying?D?'#666':'#999':'#000' }}>
+                style={{ width:'100%', padding:14, borderRadius:12, fontWeight:800, fontSize:14, border:'none', cursor:swapPaying?'default':'pointer', background:swapPaying?D?'#333':'#ccc':'linear-gradient(135deg,#c9a84c,#a07830)', color:swapPaying?D?'#666':'#999':'#000' }}>
                 {swapPaying?<span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><Spinner/>SWAPPING...</span>:'CONFIRM SWAP'}
               </button>
               {swapResult && <TxBox result={swapResult} amount={swapAmountIn} token={swapTokenIn}/>}
@@ -676,7 +664,7 @@ export default function Home() {
 
           {/* NFT TAB */}
           {tab==='nft' && (
-            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:20 }}>
+            <div style={{ width:'100%', maxWidth:520, background:card, border:`1px solid ${border}`, borderRadius:20, padding:24 }}>
               <h2 style={{ fontSize:16, fontWeight:700, color:text, marginBottom:14 }}>NFT Receipt</h2>
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 {nftImagePreview && <img src={nftImagePreview} alt="" style={{ width:60, height:60, borderRadius:10, objectFit:'cover', border:`1px solid ${border}` }}/>}
@@ -756,26 +744,30 @@ export default function Home() {
 
         {/* RIGHT PANEL */}
         {tab !== 'batch' && (
-          <div style={{ width:300, borderLeft:`1px solid ${border}`, padding:12, display:'flex', flexDirection:'column', gap:8, background:D?'#080808':'#fafafa' }}>
+          <div style={{ width:300, borderLeft:`1px solid ${border}`, padding:14, display:'flex', flexDirection:'column', gap:8, background:D?'#080808':'#fafafa' }}>
 
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>USDC BALANCE</div>
-              {balanceLoading ? <div style={{ height:28, width:80, background:D?'#1a1a1a':'#e8e8e8', borderRadius:6, animation:'pulse 1.5s infinite' }}/> : (
-                <>
-                  <div style={{ fontSize:22, fontWeight:300, color:text, letterSpacing:'-1px' }}>${balanceFormatted}</div>
-                  <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
-                </>
-              )}
+            {/* Balance kartları yan yana */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>USDC</div>
+                {balanceLoading ? <div style={{ height:26, width:60, background:D?'#1a1a1a':'#e8e8e8', borderRadius:6, animation:'pulse 1.5s infinite' }}/> : (
+                  <>
+                    <div style={{ fontSize:20, fontWeight:300, color:text, letterSpacing:'-1px' }}>${balanceFormatted}</div>
+                    <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc · Live</div>
+                  </>
+                )}
+              </div>
+              <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
+                <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>EURC</div>
+                <div style={{ fontSize:20, fontWeight:300, color:'#facc15', letterSpacing:'-1px' }}>€0.00</div>
+                <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc · Live</div>
+              </div>
             </div>
-            <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
-              <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:3 }}>EURC BALANCE</div>
-              <div style={{ fontSize:22, fontWeight:300, color:'#facc15', letterSpacing:'-1px' }}>€0.00</div>
-              <div style={{ fontSize:9, color:'#c9a84c', fontWeight:700, marginTop:2 }}>Arc Testnet · Live</div>
-            </div>
+
             {/* My Profile / Create My Profile */}
             {xUser ? (
               <Link href={`/u/${xUser.username.toLowerCase()}`} style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 10px', background:'#1a1500', border:'1px solid #c9a84c44', borderRadius:10, textDecoration:'none' }}>
-                {xUser.avatar && <img src={xUser.avatar} alt="" style={{ width:24, height:24, borderRadius:'50%', border:'1px solid #c9a84c33' }}/>}
+                {xUser.avatar && <img src={xUser.avatar} alt="" style={{ width:28, height:28, borderRadius:'50%', border:'1px solid #c9a84c33' }}/>}
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:11, fontWeight:800, color:'#c9a84c' }}>My Arc Profile</div>
                   <div style={{ fontSize:9, color:'#555' }}>/u/{xUser.username.toLowerCase()}</div>
@@ -821,13 +813,13 @@ export default function Home() {
             <div style={{ background:card, border:`1px solid ${border}`, borderRadius:12, padding:'11px 12px' }}>
               <div style={{ fontSize:9, color:muted, fontWeight:700, letterSpacing:'.4px', marginBottom:8 }}>ANALYTICS</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                <div style={{ background:field, borderRadius:8, padding:8 }}>
+                <div style={{ background:field, borderRadius:8, padding:10 }}>
                   <div style={{ fontSize:9, color:muted }}>Total sent</div>
-                  <div style={{ fontSize:14, fontWeight:700, color:'#c9a84c' }}>${totalPaid.toFixed(2)}</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:'#c9a84c' }}>${totalPaid.toFixed(2)}</div>
                 </div>
-                <div style={{ background:field, borderRadius:8, padding:8 }}>
+                <div style={{ background:field, borderRadius:8, padding:10 }}>
                   <div style={{ fontSize:9, color:muted }}>Transactions</div>
-                  <div style={{ fontSize:14, fontWeight:700, color:text }}>{transactions.length}</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:text }}>{transactions.length}</div>
                 </div>
               </div>
             </div>
@@ -842,9 +834,9 @@ export default function Home() {
                   { href:'https://testnet.arcscan.app', title:'ArcScan Explorer', sub:'Track transactions', gold:false },
                 ].map(item => (
                   <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 8px', border:`1px solid ${item.gold?'#2a2500':border}`, borderRadius:8, textDecoration:'none', background:item.gold?D?'#1a1500':'#fef9ec':D?'#080808':'#f5f5f5' }}>
+                    style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 10px', border:`1px solid ${item.gold?'#2a2500':border}`, borderRadius:8, textDecoration:'none', background:item.gold?D?'#1a1500':'#fef9ec':D?'#080808':'#f5f5f5' }}>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:10, fontWeight:600, color:item.gold?'#c9a84c':text }}>{item.title}</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:item.gold?'#c9a84c':text }}>{item.title}</div>
                       <div style={{ fontSize:9, color:muted }}>{item.sub}</div>
                     </div>
                     <span style={{ fontSize:10, color:subtle }}>↗</span>
@@ -859,11 +851,3 @@ export default function Home() {
     </div>
   )
 }
-
-
-
-
-
-
-
-
